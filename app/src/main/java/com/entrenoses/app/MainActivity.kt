@@ -225,7 +225,8 @@ private fun EntreNosesApp(onSignOut: () -> Unit) {
                     showDeposit = true
                 }
                 Page.More -> MorePage(Modifier.padding(padding), onOpenTrash = { page = Page.Trash }, onOpenBudgets = { page = Page.Budgets }, onOpenReports = { page = Page.Reports }, onOpenBills = { page = Page.Bills }, onOpenHousehold = { page = Page.Household }, onSignOut = onSignOut)
-                Page.Household -> HouseholdPage(Modifier.padding(padding))\n                Page.Reports -> ReportsPage(Modifier.padding(padding), entries)
+                Page.Household -> HouseholdPage(Modifier.padding(padding))
+                Page.Reports -> ReportsPage(Modifier.padding(padding), entries)
                 Page.Bills -> BillsPage(
                     Modifier.padding(padding), bills,
                     onTogglePaid = { bill ->
@@ -406,7 +407,8 @@ private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit, onOpenBudgets:
         MoreCard("Casa e pets", "Consumo, estoque e gastos dos animais")
         MoreCard("Relatórios", "Resumo mensal, categorias e exportação")
         MoreCard("Configurações", "Privacidade, categorias e limites")
-        TextButton(onClick = onOpenBills) { Text("Contas a pagar") }\n        TextButton(onClick = onOpenHousehold) { Text("Espaço do casal e convite") }
+        TextButton(onClick = onOpenBills) { Text("Contas a pagar") }
+        TextButton(onClick = onOpenHousehold) { Text("Espaço do casal e convite") }
         TextButton(onClick = onOpenReports) { Text("Relatórios mensais e anuais") }
         TextButton(onClick = onOpenBudgets) { Text("Orçamentos e limites por categoria") }
         TextButton(onClick = onOpenTrash) { Text("Abrir lixeira de movimentos") }

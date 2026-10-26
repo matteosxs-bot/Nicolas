@@ -58,7 +58,7 @@ private enum class Page(val label: String) {
 private data class MoneyEntry(val title: String, val amount: Double, val income: Boolean, val person: String, val category: String, val date: String = currentDate(), val paid: Boolean = false)
 private data class Goal(val title: String, val target: Double, val saved: Double)
 private data class TrashEntry(val entry: MoneyEntry, val deletedAt: Long)
-private data class ShoppingItem(val name: String, val checked: Boolean = false)
+private data class ShoppingItem(val name: String, val checked: Boolean = false, val id: String = java.util.UUID.randomUUID().toString())
 private data class BudgetLimit(val category: String, val limit: Double)
 private data class Bill(val title: String, val amount: Double, val dueDate: String, val paid: Boolean = false, val recurring: Boolean = false)
 private val brl = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
@@ -637,8 +637,8 @@ private fun loadShopping(context: Context): List<ShoppingItem> = runCatching {
     val array = JSONArray(prefs(context).getString("shopping", "[]"))
     (0 until array.length()).map { i ->
         val raw = array.get(i)
-        if (raw is JSONObject) ShoppingItem(raw.optString("name"), raw.optBoolean("checked", false))
-        else ShoppingItem(raw.toString(), false)
+        if (raw is JSONObject) ShoppingItem(raw.optString("name"), raw.optBoolean("checked", false), raw.optString("id").ifBlank { "legacy-${i}-${raw.optString("name").hashCode()}" })
+        else ShoppingItem(raw.toString(), false, "legacy-${i}-${raw.toString().hashCode()}")
     }
 }.getOrDefault(emptyList())
 
@@ -646,6 +646,7 @@ private fun saveShopping(context: Context, items: List<ShoppingItem>) {
     val array = JSONArray()
     items.forEach { item ->
         array.put(JSONObject().apply {
+            put("id", item.id)
             put("name", item.name)
             put("checked", item.checked)
         })

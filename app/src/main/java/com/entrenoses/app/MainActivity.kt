@@ -74,12 +74,12 @@ private fun isValidDate(value: String): Boolean = dateMillis(value) != null
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { AuthGate { EntreNosesApp() } }
+        setContent { AuthGate { onSignOut -> EntreNosesApp(onSignOut) } }
     }
 }
 
 @Composable
-private fun EntreNosesApp() {
+private fun EntreNosesApp(onSignOut: () -> Unit) {
     val context = LocalContext.current
     var page by remember { mutableStateOf(Page.Home) }
     val entries = remember { mutableStateListOf<MoneyEntry>().apply { addAll(loadEntries(context)) } }
@@ -224,7 +224,7 @@ private fun EntreNosesApp() {
                     selectedGoal = goal
                     showDeposit = true
                 }
-                Page.More -> MorePage(Modifier.padding(padding), onOpenTrash = { page = Page.Trash }, onOpenBudgets = { page = Page.Budgets }, onOpenReports = { page = Page.Reports }, onOpenBills = { page = Page.Bills })
+                Page.More -> MorePage(Modifier.padding(padding), onOpenTrash = { page = Page.Trash }, onOpenBudgets = { page = Page.Budgets }, onOpenReports = { page = Page.Reports }, onOpenBills = { page = Page.Bills }, onSignOut = onSignOut)
                 Page.Reports -> ReportsPage(Modifier.padding(padding), entries)
                 Page.Bills -> BillsPage(
                     Modifier.padding(padding), bills,
@@ -397,7 +397,7 @@ private fun GoalsPage(modifier: Modifier, goals: List<Goal>, onAddDeposit: (Goal
 }
 
 @Composable
-private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit, onOpenBudgets: () -> Unit, onOpenReports: () -> Unit, onOpenBills: () -> Unit) {
+private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit, onOpenBudgets: () -> Unit, onOpenReports: () -> Unit, onOpenBills: () -> Unit, onSignOut: () -> Unit) {
     Column(modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Mais opções", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
         MoreCard("Contas e cartões", "Bancos, dinheiro, cartões e limites")
@@ -410,6 +410,7 @@ private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit, onOpenBudgets:
         TextButton(onClick = onOpenReports) { Text("Relatórios mensais e anuais") }
         TextButton(onClick = onOpenBudgets) { Text("Orçamentos e limites por categoria") }
         TextButton(onClick = onOpenTrash) { Text("Abrir lixeira de movimentos") }
+        TextButton(onClick = onSignOut) { Text("Sair da conta", color = Red) }
         Text("As demais seções ainda estão em desenvolvimento.", color = Muted, fontSize = 11.sp)
     }
 }

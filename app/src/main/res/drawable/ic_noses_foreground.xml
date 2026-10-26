@@ -12,11 +12,11 @@
         android:pathData="M18,54 C18,35 40,31 54,54 C68,77 90,73 90,54 C90,35 68,31 54,54 C40,77 18,73 18,54" />
     <path
         android:fillColor="#B69CFF"
-        android:pathData="M27,31 A6,6 0,1 0,27.1 31 Z" />
+        android:pathData="M33,31 A6,6 0,1,1 21,31 A6,6 0,1,1 33,31" />
     <path
         android:fillColor="#F0E8FF"
-        android:pathData="M81,70 A6,6 0,1 0,81.1 70 Z" />
+        android:pathData="M87,70 A6,6 0,1,1 75,70 A6,6 0,1,1 87,70" />
     <path
         android:fillColor="#6C4AA0"
-        android:pathData="M54,19 A4,4 0,1 0,54.1 19 Z" />
+        android:pathData="M58,19 A4,4 0,1,1 50,19 A4,4 0,1,1 58,19" />
 </vector>

@@ -1050,13 +1050,15 @@ private fun parseCsvRows(content: String): List<List<String>> {
     var row = mutableListOf<String>()
     val field = StringBuilder()
     var quoted = false
+    val firstLine = content.substringBefore('\n')
+    val delimiter = if (firstLine.count { it == ';' } >= firstLine.count { it == ',' }) ';' else ','
     var i = 0
     while (i < content.length) {
         val ch = content[i]
         when {
             ch == '"' && quoted && i + 1 < content.length && content[i + 1] == '"' -> { field.append('"'); i++ }
             ch == '"' -> quoted = !quoted
-            !quoted && (ch == ';' || ch == ',') -> { row.add(field.toString()); field.setLength(0) }
+            !quoted && ch == delimiter -> { row.add(field.toString()); field.setLength(0) }
             !quoted && (ch == '\n' || ch == '\r') -> {
                 if (ch == '\r' && i + 1 < content.length && content[i + 1] == '\n') i++
                 row.add(field.toString()); field.setLength(0)

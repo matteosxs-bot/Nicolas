@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -112,6 +113,7 @@ private fun EntreNosesApp() {
                                     Page.Shopping -> Icons.Default.ListAlt
                                     Page.Goals -> Icons.Default.Savings
                                     Page.More -> Icons.Default.MoreHoriz
+                                    Page.Trash -> Icons.Default.Delete
                                 }, contentDescription = item.label)
                             },
                             label = { Text(item.label, fontSize = 10.sp) },

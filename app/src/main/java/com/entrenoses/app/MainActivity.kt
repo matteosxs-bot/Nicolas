@@ -2,6 +2,14 @@ package com.entrenoses.app
 
 import android.os.Bundle
 import android.content.Context
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -101,7 +109,14 @@ private fun EntreNosesApp(onSignOut: () -> Unit) {
         bills.clear(); bills.addAll(loadBills(context))
     }
     var cloudSyncStatus by remember { mutableStateOf(if (CloudAuth.isConfigured()) "Conectando à nuvem..." else "Dados salvos neste aparelho") }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     LaunchedEffect(Unit) {
+        BillReminderScheduler.ensureScheduled(context)
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         if (CloudAuth.isConfigured()) {
             try {
                 CloudSync.sync(context)

@@ -184,7 +184,7 @@ private fun EntreNosesApp() {
 }
 
 @Composable
-private fun HomePage(modifier: Modifier, income: Double, expenses: Double, entries: List<MoneyEntry>, goals: List<Goal>, onViewAll: () -> Unit) {
+private fun HomePage(modifier: Modifier, income: Double, expenses: Double, entries: List<MoneyEntry>, goals: List<Goal>, onViewAll: () -> Unit, onTogglePaid: (MoneyEntry) -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF4B3372), Color(0xFF21182E))), RoundedCornerShape(24.dp)).padding(22.dp)) {
@@ -195,27 +195,29 @@ private fun HomePage(modifier: Modifier, income: Double, expenses: Double, entri
                 Spacer(Modifier.height(20.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Metric("Entradas", money(income), Green, Modifier.weight(1f))
-                    Metric("Saídas", money(expenses), Red, Modifier.weight(1f))
+                    Metric("Saídas pagas", money(expenses), Red, Modifier.weight(1f))
                 }
+                Spacer(Modifier.height(8.dp))
+                Text("Despesas pendentes: ${money(pendingExpenses)}", color = Muted, fontSize = 12.sp)
             }
         }
         item { SectionTitle("Movimentos recentes", "Ver todos", onViewAll) }
         if (entries.isEmpty()) item { EmptyCard("Nenhum movimento cadastrado ainda.") }
-        items(entries.take(5)) { entry -> EntryRow(entry) }
+        items(entries.take(5)) { entry -> EntryRow(entry, onTogglePaid) }
         item { SectionTitle("Metas de economia", null, null) }
         if (goals.isEmpty()) item { EmptyCard("Crie uma meta para acompanhar suas economias.") }
         items(goals.take(3)) { GoalCard(it) }
-        item { Text("Esta versão inicial ainda não sincroniza dados entre aparelhos. Não use os números de demonstração como seu saldo real.", color = Muted, fontSize = 11.sp) }
+        item { Text("Os dados ficam salvos neste aparelho. A sincronização entre aparelhos ainda não está disponível.", color = Muted, fontSize = 11.sp) }
     }
 }
 
 @Composable
-private fun TransactionsPage(modifier: Modifier, entries: List<MoneyEntry>) {
+private fun TransactionsPage(modifier: Modifier, entries: List<MoneyEntry>, onTogglePaid: (MoneyEntry) -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Movimentos", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold) }
         item { Text("Entradas e saídas registradas neste aparelho.", color = Muted, fontSize = 13.sp) }
         if (entries.isEmpty()) item { EmptyCard("Ainda não há movimentos.") }
-        items(entries) { EntryRow(it) }
+        items(entries) { EntryRow(it, onTogglePaid) }
     }
 }
 
@@ -278,7 +280,7 @@ private fun SectionTitle(title: String, action: String?, onClick: (() -> Unit)?)
 }
 
 @Composable
-private fun EntryRow(entry: MoneyEntry) {
+private fun EntryRow(entry: MoneyEntry, onTogglePaid: (MoneyEntry) -> Unit) {
     Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(42.dp).background(if (entry.income) Color(0xFF244735) else Color(0xFF452631), CircleShape), contentAlignment = Alignment.Center) {
             Icon(if (entry.income) Icons.Default.CheckCircle else Icons.Default.AccountBalanceWallet, null, tint = if (entry.income) Green else Red)
@@ -286,7 +288,11 @@ private fun EntryRow(entry: MoneyEntry) {
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(entry.title, color = White, fontWeight = FontWeight.SemiBold)
-            Text("${entry.category} · ${entry.person}", color = Muted, fontSize = 12.sp)
+            Text("${entry.category} · ${entry.person} · ${entry.date}", color = Muted, fontSize = 10.sp)
+            Text(if (entry.paid) (if (entry.income) "Recebido" else "Pago") else "Pendente", color = if (entry.paid) Green else Red, fontSize = 11.sp)
+            TextButton(onClick = { onTogglePaid(entry) }, contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)) {
+                Text(if (entry.paid) "Marcar pendente" else if (entry.income) "Confirmar recebimento" else "Confirmar pagamento", fontSize = 10.sp)
+            }
         }
         Text((if (entry.income) "+" else "−") + money(entry.amount), color = if (entry.income) Green else Red, fontWeight = FontWeight.Bold, fontSize = 13.sp)
     }

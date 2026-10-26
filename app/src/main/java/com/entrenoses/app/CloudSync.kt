@@ -159,7 +159,7 @@ internal object CloudSync {
                 val fields = when (identityKey) {
                     "shopping", "name" -> listOf("name")
                     "transport_records", "stock_items", "commitments" -> listOf("id")
-                    "entries" -> listOf("title", "date", "person", "category", "income")
+                    "entries" -> listOf("title", "date", "person", "category", "income", "amount")
                     "goals" -> listOf("title")
                     "budgets" -> listOf("category")
                     "bills" -> listOf("title", "dueDate")

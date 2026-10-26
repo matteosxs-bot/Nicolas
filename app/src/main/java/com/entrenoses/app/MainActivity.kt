@@ -52,6 +52,7 @@ private enum class Page(val label: String) {
 private data class MoneyEntry(val title: String, val amount: Double, val income: Boolean, val person: String, val category: String, val date: String = currentDate(), val paid: Boolean = false)
 private data class Goal(val title: String, val target: Double, val saved: Double)
 private data class TrashEntry(val entry: MoneyEntry, val deletedAt: Long)
+private data class ShoppingItem(val name: String, val checked: Boolean = false)
 private val brl = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
 private fun money(value: Double) = brl.format(value)
 private fun currentDate() = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date())
@@ -73,7 +74,7 @@ private fun EntreNosesApp() {
         saveTrash(context, loaded)
         mutableStateListOf<TrashEntry>().apply { addAll(loaded) }
     }
-    val shopping = remember { mutableStateListOf<String>().apply { addAll(loadShopping(context)) } }
+    val shopping = remember { mutableStateListOf<ShoppingItem>().apply { addAll(loadShopping(context)) } }
     val goals = remember { mutableStateListOf<Goal>().apply { addAll(loadGoals(context)) } }
     var showEntry by remember { mutableStateOf(false) }
     var editingEntry by remember { mutableStateOf<MoneyEntry?>(null) }
@@ -176,10 +177,20 @@ private fun EntreNosesApp() {
                         }
                     }
                 )
-                Page.Shopping -> ShoppingPage(Modifier.padding(padding), shopping) {
-                    shopping.remove(it)
-                    saveShopping(context, shopping.toList())
-                }
+                Page.Shopping -> ShoppingPage(
+                    Modifier.padding(padding), shopping,
+                    onToggle = { item ->
+                        val index = shopping.indexOf(item)
+                        if (index >= 0) {
+                            shopping[index] = item.copy(checked = !item.checked)
+                            saveShopping(context, shopping.toList())
+                        }
+                    },
+                    onRemove = { item ->
+                        shopping.remove(item)
+                        saveShopping(context, shopping.toList())
+                    }
+                )
                 Page.Goals -> GoalsPage(Modifier.padding(padding), goals) { goal ->
                     selectedGoal = goal
                     showDeposit = true
@@ -225,7 +236,7 @@ private fun EntreNosesApp() {
     if (showShopping) ShoppingDialog(
         onDismiss = { showShopping = false },
         onSave = { item ->
-            shopping.add(item)
+            shopping.add(ShoppingItem(item))
             saveShopping(context, shopping.toList())
             showShopping = false
         }
@@ -285,16 +296,15 @@ private fun TransactionsPage(modifier: Modifier, entries: List<MoneyEntry>, onEd
 }
 
 @Composable
-private fun ShoppingPage(modifier: Modifier, shopping: List<String>, onRemove: (String) -> Unit) {
+private fun ShoppingPage(modifier: Modifier, shopping: List<ShoppingItem>, onToggle: (ShoppingItem) -> Unit, onRemove: (ShoppingItem) -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Lista de compras", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold) }
         item { Text("Marque os itens quando terminar de comprar.", color = Muted, fontSize = 13.sp) }
         if (shopping.isEmpty()) item { EmptyCard("Sua lista está vazia.") }
         items(shopping) { item ->
-            var checked by remember(item) { mutableStateOf(false) }
             Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked, { checked = it }, colors = CheckboxDefaults.colors(checkedColor = Purple))
-                Text(item, Modifier.weight(1f), color = if (checked) Muted else White)
+                Checkbox(item.checked, { onToggle(item) }, colors = CheckboxDefaults.colors(checkedColor = Purple))
+                Text(item.name, Modifier.weight(1f), color = if (item.checked) Muted else White)
                 TextButton(onClick = { onRemove(item) }) { Text("Remover", color = Red) }
             }
         }
@@ -509,14 +519,23 @@ private fun saveEntries(context: Context, entries: List<MoneyEntry>) {
     prefs(context).edit().putString("entries", array.toString()).apply()
 }
 
-private fun loadShopping(context: Context): List<String> = runCatching {
+private fun loadShopping(context: Context): List<ShoppingItem> = runCatching {
     val array = JSONArray(prefs(context).getString("shopping", "[]"))
-    (0 until array.length()).map { array.getString(it) }
+    (0 until array.length()).map { i ->
+        val raw = array.get(i)
+        if (raw is JSONObject) ShoppingItem(raw.optString("name"), raw.optBoolean("checked", false))
+        else ShoppingItem(raw.toString(), false)
+    }
 }.getOrDefault(emptyList())
 
-private fun saveShopping(context: Context, items: List<String>) {
+private fun saveShopping(context: Context, items: List<ShoppingItem>) {
     val array = JSONArray()
-    items.forEach { array.put(it) }
+    items.forEach { item ->
+        array.put(JSONObject().apply {
+            put("name", item.name)
+            put("checked", item.checked)
+        })
+    }
     prefs(context).edit().putString("shopping", array.toString()).apply()
 }
 

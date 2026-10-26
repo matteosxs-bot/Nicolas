@@ -41,7 +41,7 @@ private object HouseholdCloud {
     }
 
     suspend fun join(context: Context, code: String): HouseholdInfo = withContext(Dispatchers.IO) {
-        val session = CloudAuth.savedSession(context) ?: error("Entre na sua conta primeiro.")
+        val session = CloudAuth.refreshSession(context)
         val response = rpc(session.accessToken, "/rest/v1/rpc/join_household", JSONObject().put("code", code.trim().uppercase()))
         val id = runCatching { JSONObject(response).optString("household_id") }.getOrNull()
             ?.takeIf { it.isNotBlank() } ?: response.trim().trim('"')

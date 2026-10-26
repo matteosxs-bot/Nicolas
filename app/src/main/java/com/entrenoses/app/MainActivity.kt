@@ -130,7 +130,7 @@ private fun EntreNosesApp() {
         ) { padding ->
             when (page) {
                 Page.Home -> HomePage(
-                    Modifier.padding(padding), income, expenses, entries, goals,
+                    Modifier.padding(padding), income, expenses, pendingExpenses, entries, goals,
                     onViewAll = { page = Page.Transactions },
                     onTogglePaid = { entry ->
                         val index = entries.indexOf(entry)
@@ -184,7 +184,7 @@ private fun EntreNosesApp() {
 }
 
 @Composable
-private fun HomePage(modifier: Modifier, income: Double, expenses: Double, entries: List<MoneyEntry>, goals: List<Goal>, onViewAll: () -> Unit, onTogglePaid: (MoneyEntry) -> Unit) {
+private fun HomePage(modifier: Modifier, income: Double, expenses: Double, pendingExpenses: Double, entries: List<MoneyEntry>, goals: List<Goal>, onViewAll: () -> Unit, onTogglePaid: (MoneyEntry) -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF4B3372), Color(0xFF21182E))), RoundedCornerShape(24.dp)).padding(22.dp)) {
@@ -328,12 +328,13 @@ private fun EmptyCard(message: String) {
 }
 
 @Composable
-private fun EntryDialog(onDismiss: () -> Unit, onSave: (String, Double, Boolean, String, String) -> Unit) {
+private fun EntryDialog(onDismiss: () -> Unit, onSave: (String, Double, Boolean, String, String, Boolean) -> Unit) {
     var title by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var income by remember { mutableStateOf(false) }
     var person by remember { mutableStateOf("Matteo") }
     var category by remember { mutableStateOf("Outros") }
+    var paid by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Novo movimento") },
@@ -354,11 +355,17 @@ private fun EntryDialog(onDismiss: () -> Unit, onSave: (String, Double, Boolean,
                     }
                 }
                 OutlinedTextField(category, { category = it }, label = { Text("Categoria") }, singleLine = true)
+                Text("Situação do movimento", color = Muted, fontSize = 12.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    FilterChip(selected = !paid, onClick = { paid = false }, label = { Text("Pendente") })
+                    Spacer(Modifier.width(8.dp))
+                    FilterChip(selected = paid, onClick = { paid = true }, label = { Text(if (income) "Recebido" else "Pago") })
+                }
             }
         },
         confirmButton = { TextButton(onClick = {
             val parsed = amount.replace(",", ".").toDoubleOrNull()
-            if (title.isNotBlank() && parsed != null && parsed > 0) onSave(title.trim(), parsed, income, person, category.ifBlank { "Outros" })
+            if (title.isNotBlank() && parsed != null && parsed > 0) onSave(title.trim(), parsed, income, person, category.ifBlank { "Outros" }, paid)
         }) { Text("Salvar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
@@ -406,7 +413,8 @@ private fun loadEntries(context: Context): List<MoneyEntry> = runCatching {
     (0 until array.length()).map { i ->
         val item = array.getJSONObject(i)
         MoneyEntry(item.optString("title"), item.optDouble("amount"), item.optBoolean("income"),
-            item.optString("person", "Matteo"), item.optString("category", "Outros"))
+            item.optString("person", "Matteo"), item.optString("category", "Outros"),
+            item.optString("date", currentDate()), item.optBoolean("paid", false))
     }
 }.getOrDefault(emptyList())
 
@@ -419,6 +427,8 @@ private fun saveEntries(context: Context, entries: List<MoneyEntry>) {
             put("income", entry.income)
             put("person", entry.person)
             put("category", entry.category)
+            put("date", entry.date)
+            put("paid", entry.paid)
         })
     }
     prefs(context).edit().putString("entries", array.toString()).apply()

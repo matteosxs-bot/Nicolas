@@ -32,7 +32,7 @@ private object HouseholdCloud {
     )
 
     suspend fun create(context: Context, name: String): HouseholdInfo = withContext(Dispatchers.IO) {
-        val session = CloudAuth.savedSession(context) ?: error("Entre na sua conta primeiro.")
+        val session = CloudAuth.refreshSession(context)
         val response = rpc(session.accessToken, "/rest/v1/rpc/create_household", JSONObject().put("household_name", name.trim()))
         val row = JSONArray(response).optJSONObject(0) ?: error("O servidor não retornou o código do espaço.")
         val info = HouseholdInfo(row.getString("household_id"), row.getString("invite_code"))

@@ -141,6 +141,12 @@ private fun EntreNosesApp() {
                     Modifier.padding(padding), income, expenses, pendingExpenses, entries, goals,
                     onViewAll = { page = Page.Transactions },
                     onAddDeposit = { goal -> selectedGoal = goal; showDeposit = true },
+                    onDelete = { entry ->
+                        entries.remove(entry)
+                        trash.add(0, TrashEntry(entry, System.currentTimeMillis()))
+                        saveEntries(context, entries.toList())
+                        saveTrash(context, trash.toList())
+                    },
                     onTogglePaid = { entry ->
                         val index = entries.indexOf(entry)
                         if (index >= 0) {
@@ -233,7 +239,7 @@ private fun EntreNosesApp() {
 }
 
 @Composable
-private fun HomePage(modifier: Modifier, income: Double, expenses: Double, pendingExpenses: Double, entries: List<MoneyEntry>, goals: List<Goal>, onViewAll: () -> Unit, onAddDeposit: (Goal) -> Unit, onTogglePaid: (MoneyEntry) -> Unit) {
+private fun HomePage(modifier: Modifier, income: Double, expenses: Double, pendingExpenses: Double, entries: List<MoneyEntry>, goals: List<Goal>, onViewAll: () -> Unit, onAddDeposit: (Goal) -> Unit, onDelete: (MoneyEntry) -> Unit, onTogglePaid: (MoneyEntry) -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF4B3372), Color(0xFF21182E))), RoundedCornerShape(24.dp)).padding(22.dp)) {
@@ -252,7 +258,7 @@ private fun HomePage(modifier: Modifier, income: Double, expenses: Double, pendi
         }
         item { SectionTitle("Movimentos recentes", "Ver todos", onViewAll) }
         if (entries.isEmpty()) item { EmptyCard("Nenhum movimento cadastrado ainda.") }
-        items(entries.take(5)) { entry -> EntryRow(entry, onTogglePaid) }
+        items(entries.take(5)) { entry -> EntryRow(entry, onTogglePaid, onDelete) }
         item { SectionTitle("Metas de economia", null, null) }
         if (goals.isEmpty()) item { EmptyCard("Crie uma meta para acompanhar suas economias.") }
         items(goals.take(3)) { GoalCard(it, onAddDeposit) }
@@ -261,12 +267,12 @@ private fun HomePage(modifier: Modifier, income: Double, expenses: Double, pendi
 }
 
 @Composable
-private fun TransactionsPage(modifier: Modifier, entries: List<MoneyEntry>, onTogglePaid: (MoneyEntry) -> Unit) {
+private fun TransactionsPage(modifier: Modifier, entries: List<MoneyEntry>, onDelete: (MoneyEntry) -> Unit, onTogglePaid: (MoneyEntry) -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Movimentos", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold) }
         item { Text("Entradas e saídas registradas neste aparelho.", color = Muted, fontSize = 13.sp) }
         if (entries.isEmpty()) item { EmptyCard("Ainda não há movimentos.") }
-        items(entries) { EntryRow(it, onTogglePaid) }
+        items(entries) { EntryRow(it, onTogglePaid, onDelete) }
     }
 }
 
@@ -298,7 +304,7 @@ private fun GoalsPage(modifier: Modifier, goals: List<Goal>, onAddDeposit: (Goal
 }
 
 @Composable
-private fun MorePage(modifier: Modifier) {
+private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit) {
     Column(modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Mais opções", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
         MoreCard("Contas e cartões", "Bancos, dinheiro, cartões e limites")
@@ -307,7 +313,8 @@ private fun MorePage(modifier: Modifier) {
         MoreCard("Casa e pets", "Consumo, estoque e gastos dos animais")
         MoreCard("Relatórios", "Resumo mensal, categorias e exportação")
         MoreCard("Configurações", "Privacidade, categorias e limites")
-        Text("Essas seções são apenas atalhos visuais nesta etapa. Ainda não executam as funções descritas.", color = Muted, fontSize = 11.sp)
+        TextButton(onClick = onOpenTrash) { Text("Abrir lixeira de movimentos") }
+        Text("As demais seções ainda estão em desenvolvimento.", color = Muted, fontSize = 11.sp)
     }
 }
 
@@ -329,7 +336,7 @@ private fun SectionTitle(title: String, action: String?, onClick: (() -> Unit)?)
 }
 
 @Composable
-private fun EntryRow(entry: MoneyEntry, onTogglePaid: (MoneyEntry) -> Unit) {
+private fun EntryRow(entry: MoneyEntry, onTogglePaid: (MoneyEntry) -> Unit, onDelete: (MoneyEntry) -> Unit) {
     Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(42.dp).background(if (entry.income) Color(0xFF244735) else Color(0xFF452631), CircleShape), contentAlignment = Alignment.Center) {
             Icon(if (entry.income) Icons.Default.CheckCircle else Icons.Default.AccountBalanceWallet, null, tint = if (entry.income) Green else Red)
@@ -339,8 +346,13 @@ private fun EntryRow(entry: MoneyEntry, onTogglePaid: (MoneyEntry) -> Unit) {
             Text(entry.title, color = White, fontWeight = FontWeight.SemiBold)
             Text("${entry.category} · ${entry.person} · ${entry.date}", color = Muted, fontSize = 10.sp)
             Text(if (entry.paid) (if (entry.income) "Recebido" else "Pago") else "Pendente", color = if (entry.paid) Green else Red, fontSize = 11.sp)
-            TextButton(onClick = { onTogglePaid(entry) }, contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)) {
-                Text(if (entry.paid) "Marcar pendente" else if (entry.income) "Confirmar recebimento" else "Confirmar pagamento", fontSize = 10.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { onTogglePaid(entry) }, contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)) {
+                    Text(if (entry.paid) "Marcar pendente" else if (entry.income) "Confirmar recebimento" else "Confirmar pagamento", fontSize = 10.sp)
+                }
+                TextButton(onClick = { onDelete(entry) }, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
+                    Text("Excluir", fontSize = 10.sp, color = Red)
+                }
             }
         }
         Text((if (entry.income) "+" else "−") + money(entry.amount), color = if (entry.income) Green else Red, fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -534,4 +546,71 @@ private fun DepositDialog(goalTitle: String, onDismiss: () -> Unit, onSave: (Dou
         }) { Text("Registrar depósito") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
+}
+
+
+@Composable
+private fun TrashPage(
+    modifier: Modifier,
+    trash: List<TrashEntry>,
+    onRestore: (TrashEntry) -> Unit,
+    onDeletePermanently: (TrashEntry) -> Unit
+) {
+    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { Text("Lixeira", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold) }
+        item { Text("Os movimentos ficam aqui por até 30 dias e depois são descartados.", color = Muted, fontSize = 13.sp) }
+        if (trash.isEmpty()) item { EmptyCard("A lixeira está vazia.") }
+        items(trash) { item ->
+            val daysLeft = (30 - ((System.currentTimeMillis() - item.deletedAt) / 86_400_000L).toInt()).coerceAtLeast(0)
+            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                Text(item.entry.title, color = White, fontWeight = FontWeight.SemiBold)
+                Text("${money(item.entry.amount)} · Excluído em ${SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date(item.deletedAt))}", color = Muted, fontSize = 12.sp)
+                Text("Restam até ${daysLeft} dias para restaurar", color = Muted, fontSize = 11.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { onRestore(item) }) { Text("Restaurar") }
+                    TextButton(onClick = { onDeletePermanently(item) }) { Text("Excluir definitivamente", color = Red) }
+                }
+            }
+        }
+    }
+}
+
+private fun loadTrash(context: Context): List<TrashEntry> = runCatching {
+    val cutoff = System.currentTimeMillis() - 30L * 24L * 60L * 60L * 1000L
+    val array = JSONArray(prefs(context).getString("trash", "[]"))
+    (0 until array.length()).mapNotNull { i ->
+        val item = array.getJSONObject(i)
+        val deletedAt = item.optLong("deletedAt")
+        if (deletedAt < cutoff) null else {
+            val entry = item.getJSONObject("entry")
+            TrashEntry(
+                MoneyEntry(
+                    entry.optString("title"), entry.optDouble("amount"), entry.optBoolean("income"),
+                    entry.optString("person", "Matteo"), entry.optString("category", "Outros"),
+                    entry.optString("date", currentDate()), entry.optBoolean("paid", false)
+                ),
+                deletedAt
+            )
+        }
+    }
+}.getOrDefault(emptyList())
+
+private fun saveTrash(context: Context, trash: List<TrashEntry>) {
+    val array = JSONArray()
+    trash.filter { System.currentTimeMillis() - it.deletedAt < 30L * 24L * 60L * 60L * 1000L }.forEach { deleted ->
+        val entry = deleted.entry
+        array.put(JSONObject().apply {
+            put("deletedAt", deleted.deletedAt)
+            put("entry", JSONObject().apply {
+                put("title", entry.title)
+                put("amount", entry.amount)
+                put("income", entry.income)
+                put("person", entry.person)
+                put("category", entry.category)
+                put("date", entry.date)
+                put("paid", entry.paid)
+            })
+        })
+    }
+    prefs(context).edit().putString("trash", array.toString()).apply()
 }

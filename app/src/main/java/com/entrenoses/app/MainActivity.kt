@@ -125,7 +125,7 @@ private fun EntreNosesApp() {
             },
             floatingActionButton = {
                 if (page == Page.Home || page == Page.Transactions) {
-                    FloatingActionButton(onClick = { showEntry = true }, containerColor = Purple, contentColor = Night) {
+                    FloatingActionButton(onClick = { editingEntry = null; showEntry = true }, containerColor = Purple, contentColor = Night) {
                         Icon(Icons.Default.Add, contentDescription = "Adicionar movimento")
                     }
                 } else if (page == Page.Shopping) {
@@ -355,6 +355,9 @@ private fun EntryRow(entry: MoneyEntry, onTogglePaid: (MoneyEntry) -> Unit, onDe
             Text("${entry.category} · ${entry.person} · ${entry.date}", color = Muted, fontSize = 10.sp)
             Text(if (entry.paid) (if (entry.income) "Recebido" else "Pago") else "Pendente", color = if (entry.paid) Green else Red, fontSize = 11.sp)
             Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { onEdit(entry) }, contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)) {
+                    Text("Editar", fontSize = 10.sp)
+                }
                 TextButton(onClick = { onTogglePaid(entry) }, contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)) {
                     Text(if (entry.paid) "Marcar pendente" else if (entry.income) "Confirmar recebimento" else "Confirmar pagamento", fontSize = 10.sp)
                 }
@@ -398,16 +401,16 @@ private fun EmptyCard(message: String) {
 }
 
 @Composable
-private fun EntryDialog(onDismiss: () -> Unit, onSave: (String, Double, Boolean, String, String, Boolean) -> Unit) {
-    var title by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var income by remember { mutableStateOf(false) }
-    var person by remember { mutableStateOf("Matteo") }
-    var category by remember { mutableStateOf("Outros") }
-    var paid by remember { mutableStateOf(false) }
+private fun EntryDialog(initialEntry: MoneyEntry?, onDismiss: () -> Unit, onSave: (MoneyEntry) -> Unit) {
+    var title by remember(initialEntry) { mutableStateOf(initialEntry?.title.orEmpty()) }
+    var amount by remember(initialEntry) { mutableStateOf(initialEntry?.amount?.toString().orEmpty()) }
+    var income by remember(initialEntry) { mutableStateOf(initialEntry?.income ?: false) }
+    var person by remember(initialEntry) { mutableStateOf(initialEntry?.person ?: "Matteo") }
+    var category by remember(initialEntry) { mutableStateOf(initialEntry?.category ?: "Outros") }
+    var paid by remember(initialEntry) { mutableStateOf(initialEntry?.paid ?: false) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Novo movimento") },
+        title = { Text(if (initialEntry == null) "Novo movimento" else "Editar movimento") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(title, { title = it }, label = { Text("Descrição") }, singleLine = true)
@@ -435,8 +438,10 @@ private fun EntryDialog(onDismiss: () -> Unit, onSave: (String, Double, Boolean,
         },
         confirmButton = { TextButton(onClick = {
             val parsed = amount.replace(",", ".").toDoubleOrNull()
-            if (title.isNotBlank() && parsed != null && parsed > 0) onSave(title.trim(), parsed, income, person, category.ifBlank { "Outros" }, paid)
-        }) { Text("Salvar") } },
+            if (title.isNotBlank() && parsed != null && parsed > 0) {
+                onSave(MoneyEntry(title.trim(), parsed, income, person, category.ifBlank { "Outros" }, initialEntry?.date ?: currentDate(), paid))
+            }
+        }) { Text(if (initialEntry == null) "Salvar" else "Salvar alterações") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
 }

@@ -1057,8 +1057,8 @@ private fun parseCsvRows(content: String): List<List<String>> {
             ch == '"' && quoted && i + 1 < content.length && content[i + 1] == '"' -> { field.append('"'); i++ }
             ch == '"' -> quoted = !quoted
             !quoted && (ch == ';' || ch == ',') -> { row.add(field.toString()); field.setLength(0) }
-            !quoted && (ch == '\\n' || ch == '\\r') -> {
-                if (ch == '\\r' && i + 1 < content.length && content[i + 1] == '\\n') i++
+            !quoted && (ch == '\n' || ch == '\r') -> {
+                if (ch == '\r' && i + 1 < content.length && content[i + 1] == '\n') i++
                 row.add(field.toString()); field.setLength(0)
                 rows.add(row); row = mutableListOf()
             }

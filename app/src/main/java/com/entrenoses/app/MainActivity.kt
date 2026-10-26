@@ -46,10 +46,11 @@ private val Green = Color(0xFF9EE6BD)
 private val Red = Color(0xFFFFA8B5)
 
 private enum class Page(val label: String) {
-    Home("Início"), Transactions("Movimentos"), Shopping("Compras"), Goals("Metas"), More("Mais")
+    Home("Início"), Transactions("Movimentos"), Shopping("Compras"), Goals("Metas"), More("Mais"), Trash("Lixeira")
 }
 private data class MoneyEntry(val title: String, val amount: Double, val income: Boolean, val person: String, val category: String, val date: String = currentDate(), val paid: Boolean = false)
 private data class Goal(val title: String, val target: Double, val saved: Double)
+private data class TrashEntry(val entry: MoneyEntry, val deletedAt: Long)
 private val brl = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
 private fun money(value: Double) = brl.format(value)
 private fun currentDate() = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date())
@@ -66,6 +67,11 @@ private fun EntreNosesApp() {
     val context = LocalContext.current
     var page by remember { mutableStateOf(Page.Home) }
     val entries = remember { mutableStateListOf<MoneyEntry>().apply { addAll(loadEntries(context)) } }
+    val trash = remember {
+        val loaded = loadTrash(context)
+        saveTrash(context, loaded)
+        mutableStateListOf<TrashEntry>().apply { addAll(loaded) }
+    }
     val shopping = remember { mutableStateListOf<String>().apply { addAll(loadShopping(context)) } }
     val goals = remember { mutableStateListOf<Goal>().apply { addAll(loadGoals(context)) } }
     var showEntry by remember { mutableStateOf(false) }
@@ -95,7 +101,7 @@ private fun EntreNosesApp() {
             },
             bottomBar = {
                 NavigationBar(containerColor = Panel, contentColor = Muted) {
-                    Page.entries.forEach { item ->
+                    Page.entries.filter { it != Page.Trash }.forEach { item ->
                         NavigationBarItem(
                             selected = page == item,
                             onClick = { page = item },
@@ -143,13 +149,22 @@ private fun EntreNosesApp() {
                         }
                     }
                 )
-                Page.Transactions -> TransactionsPage(Modifier.padding(padding), entries) { entry ->
-                    val index = entries.indexOf(entry)
-                    if (index >= 0) {
-                        entries[index] = entry.copy(paid = !entry.paid)
+                Page.Transactions -> TransactionsPage(
+                    Modifier.padding(padding), entries,
+                    onDelete = { entry ->
+                        entries.remove(entry)
+                        trash.add(0, TrashEntry(entry, System.currentTimeMillis()))
                         saveEntries(context, entries.toList())
+                        saveTrash(context, trash.toList())
+                    },
+                    onTogglePaid = { entry ->
+                        val index = entries.indexOf(entry)
+                        if (index >= 0) {
+                            entries[index] = entry.copy(paid = !entry.paid)
+                            saveEntries(context, entries.toList())
+                        }
                     }
-                }
+                )
                 Page.Shopping -> ShoppingPage(Modifier.padding(padding), shopping) {
                     shopping.remove(it)
                     saveShopping(context, shopping.toList())
@@ -158,7 +173,21 @@ private fun EntreNosesApp() {
                     selectedGoal = goal
                     showDeposit = true
                 }
-                Page.More -> MorePage(Modifier.padding(padding))
+                Page.More -> MorePage(Modifier.padding(padding)) { page = Page.Trash }
+                Page.Trash -> TrashPage(
+                    Modifier.padding(padding), trash,
+                    onRestore = { item ->
+                        trash.remove(item)
+                        entries.add(0, item.entry)
+                        saveTrash(context, trash.toList())
+                        saveEntries(context, entries.toList())
+                        page = Page.Transactions
+                    },
+                    onDeletePermanently = { item ->
+                        trash.remove(item)
+                        saveTrash(context, trash.toList())
+                    }
+                )
             }
         }
     }

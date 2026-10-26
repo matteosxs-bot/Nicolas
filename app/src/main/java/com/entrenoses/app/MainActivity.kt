@@ -234,7 +234,8 @@ private fun EntreNosesApp(onSignOut: () -> Unit) {
                     showDeposit = true
                 }
                 Page.More -> MorePage(Modifier.padding(padding), onOpenTrash = { page = Page.Trash }, onOpenBudgets = { page = Page.Budgets }, onOpenReports = { page = Page.Reports }, onOpenBills = { page = Page.Bills }, onOpenHousehold = { page = Page.Household }, onOpenTransport = { page = Page.Transport }, onSignOut = onSignOut)
-                Page.Household -> HouseholdPage(Modifier.padding(padding), onSynced = reloadAfterSync)\n                Page.Transport -> TransportPage(Modifier.padding(padding))
+                Page.Household -> HouseholdPage(Modifier.padding(padding), onSynced = reloadAfterSync)
+                Page.Transport -> TransportPage(Modifier.padding(padding))
                 Page.Reports -> ReportsPage(Modifier.padding(padding), entries)
                 Page.Bills -> BillsPage(
                     Modifier.padding(padding), bills,
@@ -417,7 +418,8 @@ private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit, onOpenBudgets:
         MoreCard("Relatórios", "Resumo mensal, categorias e exportação")
         MoreCard("Configurações", "Privacidade, categorias e limites")
         TextButton(onClick = onOpenBills) { Text("Contas a pagar") }
-        TextButton(onClick = onOpenHousehold) { Text("Espaço do casal e convite") }\n        TextButton(onClick = onOpenTransport) { Text("Transporte, combustível e manutenção") }
+        TextButton(onClick = onOpenHousehold) { Text("Espaço do casal e convite") }
+        TextButton(onClick = onOpenTransport) { Text("Transporte, combustível e manutenção") }
         TextButton(onClick = onOpenReports) { Text("Relatórios mensais e anuais") }
         TextButton(onClick = onOpenBudgets) { Text("Orçamentos e limites por categoria") }
         TextButton(onClick = onOpenTrash) { Text("Abrir lixeira de movimentos") }

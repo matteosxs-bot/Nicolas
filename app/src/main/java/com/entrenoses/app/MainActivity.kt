@@ -1003,7 +1003,7 @@ private fun normalizedHeader(value: String): String =
         .replace(Regex("\\p{Mn}+"), "")
 
 private fun parseImportedEntries(content: String): List<MoneyEntry> {
-    val rows = parseCsvRows(content).filter { row -> row.any { it.isNotBlank() } }
+    val rows = parseCsvRows(content.removePrefix("\uFEFF")).filter { row -> row.any { it.isNotBlank() } }
     require(rows.size >= 2) { "O CSV precisa ter um cabeçalho e pelo menos um movimento." }
     val header = rows.first().map(::normalizedHeader)
     fun column(vararg aliases: String): Int = header.indexOfFirst { it in aliases }
@@ -1024,15 +1024,18 @@ private fun parseImportedEntries(content: String): List<MoneyEntry> {
         val amountRaw = field(row, amountIndex).replace("R$", "", ignoreCase = true).replace(" ", "")
         if (title.isBlank() || amountRaw.isBlank() || dateRaw.isBlank()) return@mapNotNull null
         val normalizedAmount = if (amountRaw.contains(",")) amountRaw.replace(".", "").replace(",", ".") else amountRaw.replace(",", "")
-        val amount = normalizedAmount.toDoubleOrNull() ?: return@mapNotNull null
-        if (!amount.isFinite() || amount < 0) return@mapNotNull null
+        val parsedAmount = normalizedAmount.toDoubleOrNull() ?: return@mapNotNull null
+        if (!parsedAmount.isFinite()) return@mapNotNull null
+        val negativeAmount = parsedAmount < 0
+        val amount = kotlin.math.abs(parsedAmount)
         val date = if (dateRaw.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
             val parts = dateRaw.split("-"); "${parts[2]}/${parts[1]}/${parts[0]}"
         } else dateRaw
-        val type = field(row, typeIndex).lowercase(Locale.ROOT)
-        val income = type.contains("entrada") || type.contains("receita") || type.contains("income") || type.contains("credito") || type == "in"
-        val status = field(row, statusIndex).lowercase(Locale.ROOT)
-        val paid = status.isBlank() || status.contains("pago") || status.contains("recebido") || status.contains("concluido") || status.contains("paid") || status.contains("received")
+        val type = normalizedHeader(field(row, typeIndex))
+        val income = !negativeAmount && (type.contains("entrada") || type.contains("receita") || type.contains("income") || type.contains("credito") || type == "in")
+        val status = normalizedHeader(field(row, statusIndex))
+        val pending = status.contains("pendente") || status.contains("nao pago") || status.contains("nao recebido") || status.contains("unpaid")
+        val paid = !pending && (status.isBlank() || status.contains("pago") || status.contains("recebido") || status.contains("concluido") || status.contains("paid") || status.contains("received"))
         MoneyEntry(
             title = title,
             amount = amount,

@@ -106,7 +106,7 @@ internal object CloudSync {
                 val remoteRaw = remoteValue.optString("value", "")
                 if (localValue.optString("type") == "string" && remoteValue.optString("type") == "string" &&
                     localRaw.trimStart().startsWith("[") && remoteRaw.trimStart().startsWith("[")) {
-                    val merged = mergeArrays(JSONArray(remoteRaw), JSONArray(localRaw), null)
+                    val merged = mergeArrays(JSONArray(remoteRaw), JSONArray(localRaw), key)
                     result.put(key, JSONObject().put("type", "string").put("value", merged.toString()))
                 } else result.put(key, localValue)
             } else if (remoteValue == null) result.put(key, localValue)
@@ -116,17 +116,31 @@ internal object CloudSync {
     }
 
     private fun mergeArrays(remote: JSONArray, local: JSONArray, identityKey: String?): JSONArray {
-        val merged = JSONArray()
-        val seen = linkedSetOf<String>()
-        fun add(item: Any?) {
-            if (item == null || item == JSONObject.NULL) return
-            val identity = if (identityKey != null && item is JSONObject) item.optString(identityKey).trim().lowercase()
-                .takeIf { it.isNotBlank() } ?: item.toString() else item.toString()
-            if (seen.add(identity)) merged.put(item)
+        val records = linkedMapOf<String, Any>()
+        fun identity(item: Any): String {
+            if (item is JSONObject) {
+                val fields = when (identityKey) {
+                    "shopping", "name" -> listOf("name")
+                    "entries" -> listOf("title", "date", "person", "category", "income")
+                    "goals" -> listOf("title")
+                    "budgets" -> listOf("category")
+                    "bills" -> listOf("title", "dueDate")
+                    "trash" -> listOf("deletedAt", "entry")
+                    else -> emptyList()
+                }
+                if (fields.isNotEmpty()) {
+                    return fields.joinToString("|") { field ->
+                        val value = item.opt(field)
+                        if (value is JSONObject) value.toString() else value?.toString().orEmpty()
+                    }.lowercase()
+                }
+            }
+            return item.toString()
         }
-        for (i in 0 until remote.length()) add(remote.opt(i))
-        for (i in 0 until local.length()) add(local.opt(i))
-        return merged
+        for (i in 0 until remote.length()) remote.opt(i)?.let { records[identity(it)] = it }
+        // Local edits take precedence for matching records; unrelated records from both devices remain.
+        for (i in 0 until local.length()) local.opt(i)?.let { records[identity(it)] = it }
+        return JSONArray().also { merged -> records.values.forEach { merged.put(it) } }
     }
 
     private fun applyPayload(prefs: SharedPreferences, payload: JSONObject, onlyKeys: Set<String>) {

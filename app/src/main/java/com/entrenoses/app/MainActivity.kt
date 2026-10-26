@@ -74,7 +74,7 @@ private fun isValidDate(value: String): Boolean = dateMillis(value) != null
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { EntreNosesApp() }
+        setContent { AuthGate { EntreNosesApp() } }
     }
 }
 

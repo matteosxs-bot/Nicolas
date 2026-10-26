@@ -1,6 +1,7 @@
 package com.entrenoses.app
 
 import android.os.Bundle
+import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -25,11 +26,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.text.NumberFormat
 import java.util.Locale
+import org.json.JSONArray
+import org.json.JSONObject
 
 private val Night = Color(0xFF100D18)
 private val Panel = Color(0xFF1D1728)
@@ -56,13 +60,11 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun EntreNosesApp() {
+    val context = LocalContext.current
     var page by remember { mutableStateOf(Page.Home) }
-    val entries = remember { mutableStateListOf(
-        MoneyEntry("Aluguel", 1110.0, false, "Compartilhado", "Moradia"),
-        MoneyEntry("Mercado", 86.50, false, "Matteo", "Alimentação")
-    ) }
-    val shopping = remember { mutableStateListOf("Arroz", "Areia dos gatos") }
-    val goals = remember { mutableStateListOf(Goal("Reserva do casal", 1000.0, 150.0)) }
+    val entries = remember { mutableStateListOf<MoneyEntry>().apply { addAll(loadEntries(context)) } }
+    val shopping = remember { mutableStateListOf<String>().apply { addAll(loadShopping(context)) } }
+    val goals = remember { mutableStateListOf<Goal>().apply { addAll(loadGoals(context)) } }
     var showEntry by remember { mutableStateOf(false) }
     var showGoal by remember { mutableStateOf(false) }
     var showShopping by remember { mutableStateOf(false) }
@@ -125,7 +127,10 @@ private fun EntreNosesApp() {
             when (page) {
                 Page.Home -> HomePage(Modifier.padding(padding), income, expenses, entries, goals) { page = Page.Transactions }
                 Page.Transactions -> TransactionsPage(Modifier.padding(padding), entries)
-                Page.Shopping -> ShoppingPage(Modifier.padding(padding), shopping) { shopping.remove(it) }
+                Page.Shopping -> ShoppingPage(Modifier.padding(padding), shopping) {
+                    shopping.remove(it)
+                    saveShopping(context, shopping.toList())
+                }
                 Page.Goals -> GoalsPage(Modifier.padding(padding), goals)
                 Page.More -> MorePage(Modifier.padding(padding))
             }
@@ -136,6 +141,7 @@ private fun EntreNosesApp() {
         onDismiss = { showEntry = false },
         onSave = { title, amount, isIncome, person, category ->
             entries.add(0, MoneyEntry(title, amount, isIncome, person, category))
+            saveEntries(context, entries.toList())
             showEntry = false
         }
     )
@@ -143,12 +149,17 @@ private fun EntreNosesApp() {
         onDismiss = { showGoal = false },
         onSave = { title, target ->
             goals.add(Goal(title, target, 0.0))
+            saveGoals(context, goals.toList())
             showGoal = false
         }
     )
     if (showShopping) ShoppingDialog(
         onDismiss = { showShopping = false },
-        onSave = { item -> shopping.add(item); showShopping = false }
+        onSave = { item ->
+            shopping.add(item)
+            saveShopping(context, shopping.toList())
+            showShopping = false
+        }
     )
 }
 
@@ -358,4 +369,62 @@ private fun ShoppingDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
         confirmButton = { TextButton(onClick = { if (item.isNotBlank()) onSave(item.trim()) }) { Text("Adicionar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
+}
+
+private const val PREFS_NAME = "entre_noses_local_data"
+
+private fun prefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+private fun loadEntries(context: Context): List<MoneyEntry> = runCatching {
+    val array = JSONArray(prefs(context).getString("entries", "[]"))
+    (0 until array.length()).map { i ->
+        val item = array.getJSONObject(i)
+        MoneyEntry(item.optString("title"), item.optDouble("amount"), item.optBoolean("income"),
+            item.optString("person", "Matteo"), item.optString("category", "Outros"))
+    }
+}.getOrDefault(emptyList())
+
+private fun saveEntries(context: Context, entries: List<MoneyEntry>) {
+    val array = JSONArray()
+    entries.forEach { entry ->
+        array.put(JSONObject().apply {
+            put("title", entry.title)
+            put("amount", entry.amount)
+            put("income", entry.income)
+            put("person", entry.person)
+            put("category", entry.category)
+        })
+    }
+    prefs(context).edit().putString("entries", array.toString()).apply()
+}
+
+private fun loadShopping(context: Context): List<String> = runCatching {
+    val array = JSONArray(prefs(context).getString("shopping", "[]"))
+    (0 until array.length()).map { array.getString(it) }
+}.getOrDefault(emptyList())
+
+private fun saveShopping(context: Context, items: List<String>) {
+    val array = JSONArray()
+    items.forEach { array.put(it) }
+    prefs(context).edit().putString("shopping", array.toString()).apply()
+}
+
+private fun loadGoals(context: Context): List<Goal> = runCatching {
+    val array = JSONArray(prefs(context).getString("goals", "[]"))
+    (0 until array.length()).map { i ->
+        val item = array.getJSONObject(i)
+        Goal(item.optString("title"), item.optDouble("target"), item.optDouble("saved"))
+    }
+}.getOrDefault(emptyList())
+
+private fun saveGoals(context: Context, goals: List<Goal>) {
+    val array = JSONArray()
+    goals.forEach { goal ->
+        array.put(JSONObject().apply {
+            put("title", goal.title)
+            put("target", goal.target)
+            put("saved", goal.saved)
+        })
+    }
+    prefs(context).edit().putString("goals", array.toString()).apply()
 }

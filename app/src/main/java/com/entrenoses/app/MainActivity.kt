@@ -254,7 +254,10 @@ private fun EntreNosesApp(onSignOut: () -> Unit) {
                 Page.Transport -> TransportPage(Modifier.padding(padding))
                 Page.Inventory -> InventoryPage(Modifier.padding(padding))
                 Page.Commitments -> CommitmentsPage(Modifier.padding(padding))
-                Page.Reports -> ReportsPage(Modifier.padding(padding), entries)
+                Page.Reports -> ReportsPage(Modifier.padding(padding), entries, onImport = { imported ->
+                    entries.addAll(0, imported)
+                    saveEntries(context, entries.toList())
+                })
                 Page.Bills -> BillsPage(
                     Modifier.padding(padding), bills,
                     onTogglePaid = { bill ->
@@ -864,7 +867,7 @@ private fun saveBudgets(context: Context, budgets: List<BudgetLimit>) {
 
 
 @Composable
-private fun ReportsPage(modifier: Modifier, entries: List<MoneyEntry>) {
+private fun ReportsPage(modifier: Modifier, entries: List<MoneyEntry>, onImport: (List<MoneyEntry>) -> Unit) {
     val context = LocalContext.current
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) {
@@ -880,6 +883,29 @@ private fun ReportsPage(modifier: Modifier, entries: List<MoneyEntry>) {
                 }
             }
             runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(csv) } }
+        }
+    }
+    var importPreview by remember { mutableStateOf<ImportPreview?>(null) }
+    var importError by remember { mutableStateOf("") }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching {
+                val content = context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                    ?: error("Não foi possível ler o arquivo.")
+                parseImportedEntries(content)
+            }.onSuccess { parsed ->
+                val known = entries.map(::entryIdentity).toMutableSet()
+                val fresh = mutableListOf<MoneyEntry>()
+                var duplicates = 0
+                parsed.forEach { entry ->
+                    if (known.add(entryIdentity(entry))) fresh.add(entry) else duplicates++
+                }
+                importPreview = ImportPreview(fresh, duplicates, parsed.size)
+                importError = ""
+            }.onFailure { error ->
+                importPreview = null
+                importError = error.message ?: "Não foi possível interpretar esse CSV."
+            }
         }
     }
     val today = currentDate()
@@ -899,9 +925,17 @@ private fun ReportsPage(modifier: Modifier, entries: List<MoneyEntry>) {
         item { Text("Relatórios", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold) }
         item { Text("Somente movimentos pagos ou recebidos entram nos totais.", color = Muted, fontSize = 13.sp) }
         item {
-            Button(onClick = { exportLauncher.launch("entre-noses-movimentos.csv") }) {
-                Text("Exportar movimentos em CSV")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { exportLauncher.launch("entre-noses-movimentos.csv") }, modifier = Modifier.weight(1f)) {
+                    Text("Exportar CSV")
+                }
+                OutlinedButton(onClick = { importLauncher.launch(arrayOf("text/*", "application/vnd.ms-excel", "application/octet-stream")) }, modifier = Modifier.weight(1f)) {
+                    Text("Importar CSV")
+                }
             }
+        }
+        if (importError.isNotBlank()) item {
+            Text(importError, color = Red, fontSize = 13.sp)
         }
         item {
             Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(18.dp)) {
@@ -934,10 +968,112 @@ private fun ReportsPage(modifier: Modifier, entries: List<MoneyEntry>) {
             }
         }
     }
+    val preview = importPreview
+    if (preview != null) {
+        AlertDialog(
+            onDismissRequest = { importPreview = null },
+            title = { Text("Conferir importação") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${preview.entries.size} movimentos novos encontrados.")
+                    Text("${preview.duplicates} duplicados ignorados. Total lido: ${preview.totalParsed}.", color = Muted)
+                    preview.entries.take(6).forEach { entry ->
+                        Text("${entry.date} · ${entry.title} · ${money(entry.amount)}", fontSize = 12.sp)
+                    }
+                    if (preview.entries.size > 6) Text("E mais ${preview.entries.size - 6} movimentos…", color = Muted, fontSize = 12.sp)
+                    if (preview.entries.isEmpty()) Text("Nada novo para importar.")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (preview.entries.isNotEmpty()) onImport(preview.entries)
+                    importPreview = null
+                }) { Text(if (preview.entries.isEmpty()) "Fechar" else "Importar movimentos") }
+            },
+            dismissButton = { TextButton(onClick = { importPreview = null }) { Text("Cancelar") } }
+        )
+    }
 }
 
 
-private fun csvField(value: String): String = "\"" + value.replace("\"", "\"\"") + "\""
+private data class ImportPreview(val entries: List<MoneyEntry>, val duplicates: Int, val totalParsed: Int)
+
+private fun normalizedHeader(value: String): String =
+    java.text.Normalizer.normalize(value.trim().lowercase(Locale.ROOT), java.text.Normalizer.Form.NFD)
+        .replace(Regex("\\p{Mn}+"), "")
+
+private fun parseImportedEntries(content: String): List<MoneyEntry> {
+    val rows = parseCsvRows(content).filter { row -> row.any { it.isNotBlank() } }
+    require(rows.size >= 2) { "O CSV precisa ter um cabeçalho e pelo menos um movimento." }
+    val header = rows.first().map(::normalizedHeader)
+    fun column(vararg aliases: String): Int = header.indexOfFirst { it in aliases }
+    val dateIndex = column("data", "date", "data do movimento", "data lancamento")
+    val titleIndex = column("descricao", "description", "titulo", "title", "historico", "memo", "estabelecimento")
+    val typeIndex = column("tipo", "type", "natureza")
+    val categoryIndex = column("categoria", "category")
+    val personIndex = column("responsavel", "pessoa", "person", "titular")
+    val amountIndex = column("valor", "amount", "value", "valor total")
+    val statusIndex = column("situacao", "status", "estado")
+    require(dateIndex >= 0 && titleIndex >= 0 && amountIndex >= 0) {
+        "Não reconheci as colunas. O arquivo precisa ter Data, Descrição e Valor."
+    }
+    fun field(row: List<String>, index: Int): String = row.getOrNull(index).orEmpty().trim()
+    return rows.drop(1).mapNotNull { row ->
+        val title = field(row, titleIndex)
+        val dateRaw = field(row, dateIndex)
+        val amountRaw = field(row, amountIndex).replace("R$", "", ignoreCase = true).replace(" ", "")
+        if (title.isBlank() || amountRaw.isBlank() || dateRaw.isBlank()) return@mapNotNull null
+        val normalizedAmount = if (amountRaw.contains(",")) amountRaw.replace(".", "").replace(",", ".") else amountRaw.replace(",", "")
+        val amount = normalizedAmount.toDoubleOrNull() ?: return@mapNotNull null
+        if (!amount.isFinite() || amount < 0) return@mapNotNull null
+        val date = if (dateRaw.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+            val parts = dateRaw.split("-"); "${parts[2]}/${parts[1]}/${parts[0]}"
+        } else dateRaw
+        val type = field(row, typeIndex).lowercase(Locale.ROOT)
+        val income = type.contains("entrada") || type.contains("receita") || type.contains("income") || type.contains("credito") || type == "in"
+        val status = field(row, statusIndex).lowercase(Locale.ROOT)
+        val paid = status.isBlank() || status.contains("pago") || status.contains("recebido") || status.contains("concluido") || status.contains("paid") || status.contains("received")
+        MoneyEntry(
+            title = title,
+            amount = amount,
+            income = income,
+            person = field(row, personIndex).ifBlank { "Matteo" },
+            category = field(row, categoryIndex).ifBlank { "Outros" },
+            date = date,
+            paid = paid
+        )
+    }
+}
+
+private fun parseCsvRows(content: String): List<List<String>> {
+    val rows = mutableListOf<List<String>>()
+    var row = mutableListOf<String>()
+    val field = StringBuilder()
+    var quoted = false
+    var i = 0
+    while (i < content.length) {
+        val ch = content[i]
+        when {
+            ch == '"' && quoted && i + 1 < content.length && content[i + 1] == '"' -> { field.append('"'); i++ }
+            ch == '"' -> quoted = !quoted
+            !quoted && (ch == ';' || ch == ',') -> { row.add(field.toString()); field.setLength(0) }
+            !quoted && (ch == '\\n' || ch == '\\r') -> {
+                if (ch == '\\r' && i + 1 < content.length && content[i + 1] == '\\n') i++
+                row.add(field.toString()); field.setLength(0)
+                rows.add(row); row = mutableListOf()
+            }
+            else -> field.append(ch)
+        }
+        i++
+    }
+    if (field.isNotEmpty() || row.isNotEmpty()) { row.add(field.toString()); rows.add(row) }
+    return rows
+}
+
+private fun entryIdentity(entry: MoneyEntry): String =
+    listOf(entry.date, entry.title.trim().lowercase(Locale.ROOT), entry.amount.toString(), entry.income.toString(),
+        entry.category.trim().lowercase(Locale.ROOT), entry.person.trim().lowercase(Locale.ROOT))
+        .joinToString("|")
 
 
 @Composable

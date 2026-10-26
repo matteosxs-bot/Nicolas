@@ -31,7 +31,7 @@ internal object CloudSync {
             session.accessToken
         )?.optJSONObject("payload")
 
-        val mergedPrivate = mergePayloads(remotePrivate, localPrivate, setOf("entries", "goals", "budgets", "bills", "trash"))
+        val mergedPrivate = mergePayloads(remotePrivate, localPrivate, setOf("entries", "goals", "budgets", "bills", "trash", "transport_records", "stock_items", "commitments"))
         putSnapshot(
             "/rest/v1/private_snapshots?on_conflict=user_id",
             JSONObject().put("user_id", session.userId).put("payload", mergedPrivate),
@@ -121,6 +121,7 @@ internal object CloudSync {
             if (item is JSONObject) {
                 val fields = when (identityKey) {
                     "shopping", "name" -> listOf("name")
+                    "transport_records", "stock_items", "commitments" -> listOf("id")
                     "entries" -> listOf("title", "date", "person", "category", "income")
                     "goals" -> listOf("title")
                     "budgets" -> listOf("category")

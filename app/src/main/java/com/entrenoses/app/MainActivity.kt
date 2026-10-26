@@ -53,7 +53,7 @@ private val Green = Color(0xFF9EE6BD)
 private val Red = Color(0xFFFFA8B5)
 
 private enum class Page(val label: String) {
-    Home("Início"), Transactions("Movimentos"), Shopping("Compras"), Goals("Metas"), More("Mais"), Trash("Lixeira"), Budgets("Limites"), Reports("Relatórios"), Bills("Contas"), Household("Casal"), Transport("Transporte")
+    Home("Início"), Transactions("Movimentos"), Shopping("Compras"), Goals("Metas"), More("Mais"), Trash("Lixeira"), Budgets("Limites"), Reports("Relatórios"), Bills("Contas"), Household("Casal"), Transport("Transporte"), Inventory("Casa e pets")
 }
 private data class MoneyEntry(val title: String, val amount: Double, val income: Boolean, val person: String, val category: String, val date: String = currentDate(), val paid: Boolean = false)
 private data class Goal(val title: String, val target: Double, val saved: Double)
@@ -130,7 +130,7 @@ private fun EntreNosesApp(onSignOut: () -> Unit) {
             },
             bottomBar = {
                 NavigationBar(containerColor = Panel, contentColor = Muted) {
-                    Page.entries.filter { it != Page.Trash && it != Page.Budgets && it != Page.Reports && it != Page.Bills && it != Page.Household && it != Page.Transport }.forEach { item ->
+                    Page.entries.filter { it != Page.Trash && it != Page.Budgets && it != Page.Reports && it != Page.Bills && it != Page.Household && it != Page.Transport && it != Page.Inventory }.forEach { item ->
                         NavigationBarItem(
                             selected = page == item,
                             onClick = { page = item },
@@ -147,6 +147,7 @@ private fun EntreNosesApp(onSignOut: () -> Unit) {
                                     Page.Bills -> Icons.Default.ReceiptLong
                                     Page.Household -> Icons.Default.Home
                                     Page.Transport -> Icons.Default.AccountBalanceWallet
+                                    Page.Inventory -> Icons.Default.Home
                                 }, contentDescription = item.label)
                             },
                             label = { Text(item.label, fontSize = 10.sp) },
@@ -234,9 +235,10 @@ private fun EntreNosesApp(onSignOut: () -> Unit) {
                     selectedGoal = goal
                     showDeposit = true
                 }
-                Page.More -> MorePage(Modifier.padding(padding), onOpenTrash = { page = Page.Trash }, onOpenBudgets = { page = Page.Budgets }, onOpenReports = { page = Page.Reports }, onOpenBills = { page = Page.Bills }, onOpenHousehold = { page = Page.Household }, onOpenTransport = { page = Page.Transport }, onSignOut = onSignOut)
+                Page.More -> MorePage(Modifier.padding(padding), onOpenTrash = { page = Page.Trash }, onOpenBudgets = { page = Page.Budgets }, onOpenReports = { page = Page.Reports }, onOpenBills = { page = Page.Bills }, onOpenHousehold = { page = Page.Household }, onOpenTransport = { page = Page.Transport }, onOpenInventory = { page = Page.Inventory }, onSignOut = onSignOut)
                 Page.Household -> HouseholdPage(Modifier.padding(padding), onSynced = reloadAfterSync)
                 Page.Transport -> TransportPage(Modifier.padding(padding))
+                Page.Inventory -> InventoryPage(Modifier.padding(padding))
                 Page.Reports -> ReportsPage(Modifier.padding(padding), entries)
                 Page.Bills -> BillsPage(
                     Modifier.padding(padding), bills,
@@ -409,7 +411,7 @@ private fun GoalsPage(modifier: Modifier, goals: List<Goal>, onAddDeposit: (Goal
 }
 
 @Composable
-private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit, onOpenBudgets: () -> Unit, onOpenReports: () -> Unit, onOpenBills: () -> Unit, onOpenHousehold: () -> Unit, onOpenTransport: () -> Unit, onSignOut: () -> Unit) {
+private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit, onOpenBudgets: () -> Unit, onOpenReports: () -> Unit, onOpenBills: () -> Unit, onOpenHousehold: () -> Unit, onOpenTransport: () -> Unit, onOpenInventory: () -> Unit, onSignOut: () -> Unit) {
     Column(modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Mais opções", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
         MoreCard("Contas e cartões", "Bancos, dinheiro, cartões e limites")
@@ -421,6 +423,7 @@ private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit, onOpenBudgets:
         TextButton(onClick = onOpenBills) { Text("Contas a pagar") }
         TextButton(onClick = onOpenHousehold) { Text("Espaço do casal e convite") }
         TextButton(onClick = onOpenTransport) { Text("Transporte, combustível e manutenção") }
+        TextButton(onClick = onOpenInventory) { Text("Casa, pets e reposição de estoque") }
         TextButton(onClick = onOpenReports) { Text("Relatórios mensais e anuais") }
         TextButton(onClick = onOpenBudgets) { Text("Orçamentos e limites por categoria") }
         TextButton(onClick = onOpenTrash) { Text("Abrir lixeira de movimentos") }

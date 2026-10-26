@@ -55,7 +55,7 @@ private val Red = Color(0xFFFFA8B5)
 private enum class Page(val label: String) {
     Home("Início"), Transactions("Movimentos"), Shopping("Compras"), Goals("Metas"), More("Mais"), Trash("Lixeira"), Budgets("Limites"), Reports("Relatórios"), Bills("Contas"), Household("Casal"), Transport("Transporte"), Inventory("Casa e pets"), Commitments("Dívidas")
 }
-private data class MoneyEntry(val title: String, val amount: Double, val income: Boolean, val person: String, val category: String, val date: String = currentDate(), val paid: Boolean = false)
+private data class MoneyEntry(val title: String, val amount: Double, val income: Boolean, val person: String, val category: String, val date: String = currentDate(), val paid: Boolean = false, val id: String = java.util.UUID.randomUUID().toString())
 private data class Goal(val title: String, val target: Double, val saved: Double)
 private data class TrashEntry(val entry: MoneyEntry, val deletedAt: Long)
 private data class ShoppingItem(val name: String, val checked: Boolean = false, val id: String = java.util.UUID.randomUUID().toString())
@@ -613,7 +613,7 @@ private fun loadEntries(context: Context): List<MoneyEntry> = runCatching {
         val item = array.getJSONObject(i)
         MoneyEntry(item.optString("title"), item.optDouble("amount"), item.optBoolean("income"),
             item.optString("person", "Matteo"), item.optString("category", "Outros"),
-            item.optString("date", currentDate()), item.optBoolean("paid", false))
+            item.optString("date", currentDate()), item.optBoolean("paid", false), item.optString("id").ifBlank { "legacy-entry-$i-${item.optString("title").hashCode()}-${item.optDouble("amount")}" })
     }
 }.getOrDefault(emptyList())
 
@@ -621,6 +621,7 @@ private fun saveEntries(context: Context, entries: List<MoneyEntry>) {
     val array = JSONArray()
     entries.forEach { entry ->
         array.put(JSONObject().apply {
+            put("id", entry.id)
             put("title", entry.title)
             put("amount", entry.amount)
             put("income", entry.income)
@@ -734,7 +735,7 @@ private fun loadTrash(context: Context): List<TrashEntry> = runCatching {
                 MoneyEntry(
                     entry.optString("title"), entry.optDouble("amount"), entry.optBoolean("income"),
                     entry.optString("person", "Matteo"), entry.optString("category", "Outros"),
-                    entry.optString("date", currentDate()), entry.optBoolean("paid", false)
+                    entry.optString("date", currentDate()), entry.optBoolean("paid", false), entry.optString("id").ifBlank { "legacy-trash-$i-${entry.optString("title").hashCode()}-${entry.optDouble("amount")}" }
                 ),
                 deletedAt
             )
@@ -749,6 +750,7 @@ private fun saveTrash(context: Context, trash: List<TrashEntry>) {
         array.put(JSONObject().apply {
             put("deletedAt", deleted.deletedAt)
             put("entry", JSONObject().apply {
+                put("id", entry.id)
                 put("title", entry.title)
                 put("amount", entry.amount)
                 put("income", entry.income)

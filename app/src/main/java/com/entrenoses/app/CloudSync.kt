@@ -16,7 +16,7 @@ internal object CloudSync {
 
     suspend fun sync(context: Context): SyncReport = withContext(Dispatchers.IO) {
         check(CloudAuth.isConfigured()) { "O servidor ainda não está configurado." }
-        val session = CloudAuth.savedSession(context) ?: error("Entre na sua conta primeiro.")
+        val session = CloudAuth.refreshSession(context)
         val prefs = securePreferences(context)
         val householdId = prefs.getString("household_id", "").orEmpty()
 

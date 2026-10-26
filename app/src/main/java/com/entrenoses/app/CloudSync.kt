@@ -121,7 +121,7 @@ internal object CloudSync {
         fun add(item: Any?) {
             if (item == null || item == JSONObject.NULL) return
             val identity = if (identityKey != null && item is JSONObject) item.optString(identityKey).trim().lowercase()
-                .takeIf { it.isNotBlank() } else item.toString()
+                .takeIf { it.isNotBlank() } ?: item.toString() else item.toString()
             if (seen.add(identity)) merged.put(item)
         }
         for (i in 0 until remote.length()) add(remote.opt(i))

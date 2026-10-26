@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -48,7 +49,7 @@ private val Green = Color(0xFF9EE6BD)
 private val Red = Color(0xFFFFA8B5)
 
 private enum class Page(val label: String) {
-    Home("Início"), Transactions("Movimentos"), Shopping("Compras"), Goals("Metas"), More("Mais"), Trash("Lixeira"), Budgets("Limites")
+    Home("Início"), Transactions("Movimentos"), Shopping("Compras"), Goals("Metas"), More("Mais"), Trash("Lixeira"), Budgets("Limites"), Reports("Relatórios")
 }
 private data class MoneyEntry(val title: String, val amount: Double, val income: Boolean, val person: String, val category: String, val date: String = currentDate(), val paid: Boolean = false)
 private data class Goal(val title: String, val target: Double, val saved: Double)
@@ -113,7 +114,7 @@ private fun EntreNosesApp() {
             },
             bottomBar = {
                 NavigationBar(containerColor = Panel, contentColor = Muted) {
-                    Page.entries.filter { it != Page.Trash && it != Page.Budgets }.forEach { item ->
+                    Page.entries.filter { it != Page.Trash && it != Page.Budgets && it != Page.Reports }.forEach { item ->
                         NavigationBarItem(
                             selected = page == item,
                             onClick = { page = item },
@@ -126,6 +127,7 @@ private fun EntreNosesApp() {
                                     Page.More -> Icons.Default.MoreHoriz
                                     Page.Trash -> Icons.Default.Delete
                                     Page.Budgets -> Icons.Default.PieChart
+                                    Page.Reports -> Icons.Default.BarChart
                                 }, contentDescription = item.label)
                             },
                             label = { Text(item.label, fontSize = 10.sp) },
@@ -209,7 +211,8 @@ private fun EntreNosesApp() {
                     selectedGoal = goal
                     showDeposit = true
                 }
-                Page.More -> MorePage(Modifier.padding(padding), onOpenTrash = { page = Page.Trash }, onOpenBudgets = { page = Page.Budgets })
+                Page.More -> MorePage(Modifier.padding(padding), onOpenTrash = { page = Page.Trash }, onOpenBudgets = { page = Page.Budgets }, onOpenReports = { page = Page.Reports })
+                Page.Reports -> ReportsPage(Modifier.padding(padding), entries)
                 Page.Budgets -> BudgetsPage(
                     Modifier.padding(padding), budgets, entries,
                     onDelete = { budget ->
@@ -352,7 +355,7 @@ private fun GoalsPage(modifier: Modifier, goals: List<Goal>, onAddDeposit: (Goal
 }
 
 @Composable
-private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit, onOpenBudgets: () -> Unit) {
+private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit, onOpenBudgets: () -> Unit, onOpenReports: () -> Unit) {
     Column(modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Mais opções", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
         MoreCard("Contas e cartões", "Bancos, dinheiro, cartões e limites")
@@ -361,6 +364,7 @@ private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit, onOpenBudgets:
         MoreCard("Casa e pets", "Consumo, estoque e gastos dos animais")
         MoreCard("Relatórios", "Resumo mensal, categorias e exportação")
         MoreCard("Configurações", "Privacidade, categorias e limites")
+        TextButton(onClick = onOpenReports) { Text("Relatórios mensais e anuais") }
         TextButton(onClick = onOpenBudgets) { Text("Orçamentos e limites por categoria") }
         TextButton(onClick = onOpenTrash) { Text("Abrir lixeira de movimentos") }
         Text("As demais seções ainda estão em desenvolvimento.", color = Muted, fontSize = 11.sp)
@@ -750,4 +754,56 @@ private fun saveBudgets(context: Context, budgets: List<BudgetLimit>) {
         })
     }
     prefs(context).edit().putString("budgets", array.toString()).apply()
+}
+
+
+@Composable
+private fun ReportsPage(modifier: Modifier, entries: List<MoneyEntry>) {
+    val today = currentDate()
+    val monthKey = today.substring(3)
+    val yearKey = today.takeLast(4)
+    val monthEntries = entries.filter { it.paid && it.date.length >= 10 && it.date.substring(3) == monthKey }
+    val yearEntries = entries.filter { it.paid && it.date.endsWith(yearKey) }
+    val monthIncome = monthEntries.filter { it.income }.sumOf { it.amount }
+    val monthExpenses = monthEntries.filter { !it.income }.sumOf { it.amount }
+    val yearIncome = yearEntries.filter { it.income }.sumOf { it.amount }
+    val yearExpenses = yearEntries.filter { !it.income }.sumOf { it.amount }
+    val categories = monthEntries.filter { !it.income }.groupBy { it.category }
+        .map { (category, items) -> category to items.sumOf { it.amount } }
+        .sortedByDescending { it.second }
+    val maxCategory = categories.maxOfOrNull { it.second } ?: 1.0
+    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { Text("Relatórios", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold) }
+        item { Text("Somente movimentos pagos ou recebidos entram nos totais.", color = Muted, fontSize = 13.sp) }
+        item {
+            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(18.dp)) {
+                Text("Este mês", color = Purple, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text("Entradas: ${money(monthIncome)}", color = Green)
+                Text("Saídas: ${money(monthExpenses)}", color = Red)
+                Text("Saldo: ${money(monthIncome - monthExpenses)}", color = White, fontWeight = FontWeight.Bold)
+            }
+        }
+        item {
+            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(18.dp)) {
+                Text("Este ano", color = Purple, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text("Entradas: ${money(yearIncome)}", color = Green)
+                Text("Saídas: ${money(yearExpenses)}", color = Red)
+                Text("Saldo: ${money(yearIncome - yearExpenses)}", color = White, fontWeight = FontWeight.Bold)
+            }
+        }
+        item { Text("Gastos por categoria neste mês", color = White, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        if (categories.isEmpty()) item { EmptyCard("Ainda não há gastos pagos neste mês.") }
+        items(categories) { (category, amount) ->
+            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(14.dp)).padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(category, Modifier.weight(1f), color = White)
+                    Text(money(amount), color = Muted, fontSize = 12.sp)
+                }
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(progress = { (amount / maxCategory).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(6.dp), color = Purple, trackColor = Color(0xFF3A3048))
+            }
+        }
+    }
 }

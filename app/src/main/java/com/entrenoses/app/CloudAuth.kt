@@ -166,6 +166,7 @@ internal object CloudAuth {
 internal fun AuthGate(content: @Composable (onSignOut: () -> Unit) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var session by remember { mutableStateOf(CloudAuth.savedSession(context)) }
+    var localMode by remember { mutableStateOf(false) }
     var mode by remember { mutableStateOf("entrar") }
     var email by remember { mutableStateOf(session?.email.orEmpty()) }
     var password by remember { mutableStateOf("") }
@@ -174,10 +175,11 @@ internal fun AuthGate(content: @Composable (onSignOut: () -> Unit) -> Unit) {
     var message by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
-    if (session != null) {
+    if (session != null || localMode) {
         content {
-            CloudAuth.signOut(context)
+            if (session != null) CloudAuth.signOut(context)
             session = null
+            localMode = false
         }
         return
     }
@@ -252,6 +254,14 @@ internal fun AuthGate(content: @Composable (onSignOut: () -> Unit) -> Unit) {
                 ) {
                     if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     else Text(when (mode) { "criar" -> "Criar conta"; "recuperar" -> "Enviar recuperação"; else -> "Entrar" })
+                }
+                if (!CloudAuth.isConfigured()) {
+                    OutlinedButton(
+                        onClick = { localMode = true },
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) { Text("Continuar sem conta neste aparelho") }
+                    Text("O modo local funciona sem internet. A sincronização e o compartilhamento só funcionarão depois que o servidor for conectado.",
+                        color = Color(0xFFB8AEC9), fontSize = 12.sp)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     TextButton(onClick = { mode = if (mode == "entrar") "criar" else "entrar"; message = "" }, enabled = !busy) {

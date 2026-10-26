@@ -52,48 +52,27 @@ internal fun securePreferences(context: Context): SharedPreferences {
     val secure = encryptedPreferences(context, DATA_PREFS_PREFIX + safeId)
     val authPrefs = authPreferences(context)
     val legacy = context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
+
+    // Keep legacy device-only records in the device-only profile. Never silently
+    // attach them to whichever person happens to sign in first on this device.
     if (!authPrefs.getBoolean("migration_v1_complete", false)) {
         if (legacy.all.isNotEmpty()) {
-            val editor = secure.edit()
+            val localPrefs = encryptedPreferences(context, DATA_PREFS_PREFIX + "local")
+            val editor = localPrefs.edit()
             legacy.all.forEach { (key, value) ->
                 when (value) {
-                    is String -> editor.putString(key, value)
-                    is Boolean -> editor.putBoolean(key, value)
-                    is Int -> editor.putInt(key, value)
-                    is Long -> editor.putLong(key, value)
-                    is Float -> editor.putFloat(key, value)
-                    is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+                    is String -> if (!localPrefs.contains(key)) editor.putString(key, value)
+                    is Boolean -> if (!localPrefs.contains(key)) editor.putBoolean(key, value)
+                    is Int -> if (!localPrefs.contains(key)) editor.putInt(key, value)
+                    is Long -> if (!localPrefs.contains(key)) editor.putLong(key, value)
+                    is Float -> if (!localPrefs.contains(key)) editor.putFloat(key, value)
+                    is Set<*> -> if (!localPrefs.contains(key)) editor.putStringSet(key, value.filterIsInstance<String>().toSet())
                 }
             }
             check(editor.commit()) { "Não foi possível proteger os dados locais." }
             check(legacy.edit().clear().commit()) { "Não foi possível concluir a migração segura." }
         }
         check(authPrefs.edit().putBoolean("migration_v1_complete", true).commit())
-    }
-    if (userId != "local") {
-        val migrationKey = "local_data_migrated_to_user"
-        val migratedTo = authPrefs.getString(migrationKey, "").orEmpty()
-        val accountMigrationKey = "account_data_migration_${safeId}"
-        if (migratedTo.isBlank() || migratedTo == userId) {
-            if (!authPrefs.getBoolean(accountMigrationKey, false)) {
-                val localPrefs = encryptedPreferences(context, DATA_PREFS_PREFIX + "local")
-                val editor = secure.edit()
-                localPrefs.all.forEach { (key, value) ->
-                    if (key in setOf("household_id", "household_invite_code", "cloud_sync_updated_at")) return@forEach
-                    if (secure.contains(key)) return@forEach
-                    when (value) {
-                        is String -> editor.putString(key, value)
-                        is Boolean -> editor.putBoolean(key, value)
-                        is Int -> editor.putInt(key, value)
-                        is Long -> editor.putLong(key, value)
-                        is Float -> editor.putFloat(key, value)
-                        is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
-                    }
-                }
-                check(editor.commit()) { "Não foi possível migrar os dados locais para a conta." }
-                check(authPrefs.edit().putBoolean(accountMigrationKey, true).putString(migrationKey, userId).commit())
-            }
-        }
     }
     return secure
 }

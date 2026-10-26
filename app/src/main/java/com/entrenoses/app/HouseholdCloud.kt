@@ -85,6 +85,7 @@ internal fun HouseholdPage(modifier: Modifier, onSynced: () -> Unit) {
     var joinCode by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
+    var syncBusy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Column(modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {

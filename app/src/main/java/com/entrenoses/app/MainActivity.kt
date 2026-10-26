@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -51,13 +52,14 @@ private val Green = Color(0xFF9EE6BD)
 private val Red = Color(0xFFFFA8B5)
 
 private enum class Page(val label: String) {
-    Home("Início"), Transactions("Movimentos"), Shopping("Compras"), Goals("Metas"), More("Mais"), Trash("Lixeira"), Budgets("Limites"), Reports("Relatórios")
+    Home("Início"), Transactions("Movimentos"), Shopping("Compras"), Goals("Metas"), More("Mais"), Trash("Lixeira"), Budgets("Limites"), Reports("Relatórios"), Bills("Contas")
 }
 private data class MoneyEntry(val title: String, val amount: Double, val income: Boolean, val person: String, val category: String, val date: String = currentDate(), val paid: Boolean = false)
 private data class Goal(val title: String, val target: Double, val saved: Double)
 private data class TrashEntry(val entry: MoneyEntry, val deletedAt: Long)
 private data class ShoppingItem(val name: String, val checked: Boolean = false)
 private data class BudgetLimit(val category: String, val limit: Double)
+private data class Bill(val title: String, val amount: Double, val dueDate: String, val paid: Boolean = false)
 private val brl = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
 private fun money(value: Double) = brl.format(value)
 private fun currentDate() = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date())
@@ -87,12 +89,14 @@ private fun EntreNosesApp() {
     val shopping = remember { mutableStateListOf<ShoppingItem>().apply { addAll(loadShopping(context)) } }
     val goals = remember { mutableStateListOf<Goal>().apply { addAll(loadGoals(context)) } }
     val budgets = remember { mutableStateListOf<BudgetLimit>().apply { addAll(loadBudgets(context)) } }
+    val bills = remember { mutableStateListOf<Bill>().apply { addAll(loadBills(context)) } }
     var showEntry by remember { mutableStateOf(false) }
     var editingEntry by remember { mutableStateOf<MoneyEntry?>(null) }
     var showGoal by remember { mutableStateOf(false) }
     var showShopping by remember { mutableStateOf(false) }
     var showDeposit by remember { mutableStateOf(false) }
     var showBudget by remember { mutableStateOf(false) }
+    var showBill by remember { mutableStateOf(false) }
     var selectedGoal by remember { mutableStateOf<Goal?>(null) }
     val income = entries.filter { it.income && it.paid }.sumOf { it.amount }
     val expenses = entries.filter { !it.income && it.paid }.sumOf { it.amount }
@@ -116,7 +120,7 @@ private fun EntreNosesApp() {
             },
             bottomBar = {
                 NavigationBar(containerColor = Panel, contentColor = Muted) {
-                    Page.entries.filter { it != Page.Trash && it != Page.Budgets && it != Page.Reports }.forEach { item ->
+                    Page.entries.filter { it != Page.Trash && it != Page.Budgets && it != Page.Reports && it != Page.Bills }.forEach { item ->
                         NavigationBarItem(
                             selected = page == item,
                             onClick = { page = item },
@@ -130,6 +134,7 @@ private fun EntreNosesApp() {
                                     Page.Trash -> Icons.Default.Delete
                                     Page.Budgets -> Icons.Default.PieChart
                                     Page.Reports -> Icons.Default.BarChart
+                                    Page.Bills -> Icons.Default.ReceiptLong
                                 }, contentDescription = item.label)
                             },
                             label = { Text(item.label, fontSize = 10.sp) },
@@ -154,6 +159,10 @@ private fun EntreNosesApp() {
                 } else if (page == Page.Budgets) {
                     FloatingActionButton(onClick = { showBudget = true }, containerColor = Purple, contentColor = Night) {
                         Icon(Icons.Default.Add, contentDescription = "Adicionar limite")
+                    }
+                } else if (page == Page.Bills) {
+                    FloatingActionButton(onClick = { showBill = true }, containerColor = Purple, contentColor = Night) {
+                        Icon(Icons.Default.Add, contentDescription = "Adicionar conta")
                     }
                 }
             }
@@ -213,8 +222,22 @@ private fun EntreNosesApp() {
                     selectedGoal = goal
                     showDeposit = true
                 }
-                Page.More -> MorePage(Modifier.padding(padding), onOpenTrash = { page = Page.Trash }, onOpenBudgets = { page = Page.Budgets }, onOpenReports = { page = Page.Reports })
+                Page.More -> MorePage(Modifier.padding(padding), onOpenTrash = { page = Page.Trash }, onOpenBudgets = { page = Page.Budgets }, onOpenReports = { page = Page.Reports }, onOpenBills = { page = Page.Bills })
                 Page.Reports -> ReportsPage(Modifier.padding(padding), entries)
+                Page.Bills -> BillsPage(
+                    Modifier.padding(padding), bills,
+                    onTogglePaid = { bill ->
+                        val index = bills.indexOf(bill)
+                        if (index >= 0) {
+                            bills[index] = bill.copy(paid = !bill.paid)
+                            saveBills(context, bills.toList())
+                        }
+                    },
+                    onDelete = { bill ->
+                        bills.remove(bill)
+                        saveBills(context, bills.toList())
+                    }
+                )
                 Page.Budgets -> BudgetsPage(
                     Modifier.padding(padding), budgets, entries,
                     onDelete = { budget ->
@@ -265,6 +288,14 @@ private fun EntreNosesApp() {
             shopping.add(ShoppingItem(item))
             saveShopping(context, shopping.toList())
             showShopping = false
+        }
+    )
+    if (showBill) BillDialog(
+        onDismiss = { showBill = false },
+        onSave = { bill ->
+            bills.add(0, bill)
+            saveBills(context, bills.toList())
+            showBill = false
         }
     )
     if (showBudget) BudgetDialog(
@@ -357,7 +388,7 @@ private fun GoalsPage(modifier: Modifier, goals: List<Goal>, onAddDeposit: (Goal
 }
 
 @Composable
-private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit, onOpenBudgets: () -> Unit, onOpenReports: () -> Unit) {
+private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit, onOpenBudgets: () -> Unit, onOpenReports: () -> Unit, onOpenBills: () -> Unit) {
     Column(modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Mais opções", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
         MoreCard("Contas e cartões", "Bancos, dinheiro, cartões e limites")
@@ -366,6 +397,7 @@ private fun MorePage(modifier: Modifier, onOpenTrash: () -> Unit, onOpenBudgets:
         MoreCard("Casa e pets", "Consumo, estoque e gastos dos animais")
         MoreCard("Relatórios", "Resumo mensal, categorias e exportação")
         MoreCard("Configurações", "Privacidade, categorias e limites")
+        TextButton(onClick = onOpenBills) { Text("Contas a pagar") }
         TextButton(onClick = onOpenReports) { Text("Relatórios mensais e anuais") }
         TextButton(onClick = onOpenBudgets) { Text("Orçamentos e limites por categoria") }
         TextButton(onClick = onOpenTrash) { Text("Abrir lixeira de movimentos") }
@@ -834,3 +866,80 @@ private fun ReportsPage(modifier: Modifier, entries: List<MoneyEntry>) {
 
 
 private fun csvField(value: String): String = "\"" + value.replace("\"", "\"\"") + "\""
+
+
+@Composable
+private fun BillsPage(
+    modifier: Modifier,
+    bills: List<Bill>,
+    onTogglePaid: (Bill) -> Unit,
+    onDelete: (Bill) -> Unit
+) {
+    val today = currentDate()
+    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { Text("Contas a pagar", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold) }
+        item { Text("Registre vencimentos e confirme manualmente quando cada conta for paga.", color = Muted, fontSize = 13.sp) }
+        if (bills.isEmpty()) item { EmptyCard("Nenhuma conta cadastrada. Toque em + para adicionar.") }
+        items(bills.sortedBy { it.dueDate }) { bill ->
+            val overdue = !bill.paid && isValidDate(bill.dueDate) && bill.dueDate < today
+            Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(bill.title, Modifier.weight(1f), color = White, fontWeight = FontWeight.SemiBold)
+                    Text(money(bill.amount), color = if (bill.paid) Green else Red, fontWeight = FontWeight.Bold)
+                }
+                Text("Vencimento: ${bill.dueDate}", color = Muted, fontSize = 12.sp)
+                Text(if (bill.paid) "Paga" else if (overdue) "Atrasada" else "Pendente", color = if (bill.paid) Green else if (overdue) Red else Muted, fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { onTogglePaid(bill) }) { Text(if (bill.paid) "Marcar pendente" else "Confirmar pagamento") }
+                    TextButton(onClick = { onDelete(bill) }) { Text("Excluir", color = Red) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BillDialog(onDismiss: () -> Unit, onSave: (Bill) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var dueDate by remember { mutableStateOf(currentDate()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nova conta") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(title, { title = it }, label = { Text("Nome da conta") }, singleLine = true)
+                OutlinedTextField(amount, { amount = it }, label = { Text("Valor em R$") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+                OutlinedTextField(dueDate, { dueDate = it }, label = { Text("Vencimento (DD/MM/AAAA)") }, singleLine = true)
+            }
+        },
+        confirmButton = { TextButton(onClick = {
+            val parsed = amount.replace(",", ".").toDoubleOrNull()
+            if (title.isNotBlank() && parsed != null && parsed > 0 && isValidDate(dueDate.trim())) {
+                onSave(Bill(title.trim(), parsed, dueDate.trim(), false))
+            }
+        }) { Text("Salvar conta") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
+private fun loadBills(context: Context): List<Bill> = runCatching {
+    val array = JSONArray(prefs(context).getString("bills", "[]"))
+    (0 until array.length()).map { i ->
+        val item = array.getJSONObject(i)
+        Bill(item.optString("title"), item.optDouble("amount"), item.optString("dueDate"), item.optBoolean("paid"))
+    }
+}.getOrDefault(emptyList())
+
+private fun saveBills(context: Context, bills: List<Bill>) {
+    val array = JSONArray()
+    bills.forEach { bill ->
+        array.put(JSONObject().apply {
+            put("title", bill.title)
+            put("amount", bill.amount)
+            put("dueDate", bill.dueDate)
+            put("paid", bill.paid)
+        })
+    }
+    prefs(context).edit().putString("bills", array.toString()).apply()
+}

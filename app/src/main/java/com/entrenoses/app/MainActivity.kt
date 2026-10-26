@@ -146,6 +146,7 @@ private fun EntreNosesApp(onSignOut: () -> Unit) {
                                     Page.Reports -> Icons.Default.BarChart
                                     Page.Bills -> Icons.Default.ReceiptLong
                                     Page.Household -> Icons.Default.Home
+                                    Page.Transport -> Icons.Default.AccountBalanceWallet
                                 }, contentDescription = item.label)
                             },
                             label = { Text(item.label, fontSize = 10.sp) },

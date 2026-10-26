@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.text.NumberFormat
 import java.util.Locale
+import java.text.SimpleDateFormat
+import java.util.Date
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -46,10 +48,11 @@ private val Red = Color(0xFFFFA8B5)
 private enum class Page(val label: String) {
     Home("Início"), Transactions("Movimentos"), Shopping("Compras"), Goals("Metas"), More("Mais")
 }
-private data class MoneyEntry(val title: String, val amount: Double, val income: Boolean, val person: String, val category: String)
+private data class MoneyEntry(val title: String, val amount: Double, val income: Boolean, val person: String, val category: String, val date: String = currentDate(), val paid: Boolean = false)
 private data class Goal(val title: String, val target: Double, val saved: Double)
 private val brl = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
 private fun money(value: Double) = brl.format(value)
+private fun currentDate() = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date())
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,8 +71,9 @@ private fun EntreNosesApp() {
     var showEntry by remember { mutableStateOf(false) }
     var showGoal by remember { mutableStateOf(false) }
     var showShopping by remember { mutableStateOf(false) }
-    val income = entries.filter { it.income }.sumOf { it.amount }
-    val expenses = entries.filter { !it.income }.sumOf { it.amount }
+    val income = entries.filter { it.income && it.paid }.sumOf { it.amount }
+    val expenses = entries.filter { !it.income && it.paid }.sumOf { it.amount }
+    val pendingExpenses = entries.filter { !it.income && !it.paid }.sumOf { it.amount }
 
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -125,8 +129,24 @@ private fun EntreNosesApp() {
             }
         ) { padding ->
             when (page) {
-                Page.Home -> HomePage(Modifier.padding(padding), income, expenses, entries, goals) { page = Page.Transactions }
-                Page.Transactions -> TransactionsPage(Modifier.padding(padding), entries)
+                Page.Home -> HomePage(
+                    Modifier.padding(padding), income, expenses, entries, goals,
+                    onViewAll = { page = Page.Transactions },
+                    onTogglePaid = { entry ->
+                        val index = entries.indexOf(entry)
+                        if (index >= 0) {
+                            entries[index] = entry.copy(paid = !entry.paid)
+                            saveEntries(context, entries.toList())
+                        }
+                    }
+                )
+                Page.Transactions -> TransactionsPage(Modifier.padding(padding), entries) { entry ->
+                    val index = entries.indexOf(entry)
+                    if (index >= 0) {
+                        entries[index] = entry.copy(paid = !entry.paid)
+                        saveEntries(context, entries.toList())
+                    }
+                }
                 Page.Shopping -> ShoppingPage(Modifier.padding(padding), shopping) {
                     shopping.remove(it)
                     saveShopping(context, shopping.toList())
@@ -139,8 +159,8 @@ private fun EntreNosesApp() {
 
     if (showEntry) EntryDialog(
         onDismiss = { showEntry = false },
-        onSave = { title, amount, isIncome, person, category ->
-            entries.add(0, MoneyEntry(title, amount, isIncome, person, category))
+        onSave = { title, amount, isIncome, person, category, paid ->
+            entries.add(0, MoneyEntry(title, amount, isIncome, person, category, currentDate(), paid))
             saveEntries(context, entries.toList())
             showEntry = false
         }

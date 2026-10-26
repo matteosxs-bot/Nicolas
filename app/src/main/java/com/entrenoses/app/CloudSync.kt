@@ -37,7 +37,7 @@ internal object CloudSync {
             JSONObject().put("user_id", session.userId).put("payload", mergedPrivate),
             session.accessToken
         )
-        applyPayload(prefs, mergedPrivate, setOf("entries", "goals", "budgets", "bills", "trash"))
+        applyPayload(prefs, mergedPrivate, mergedPrivate.keys().asSequence().toSet())
 
         var sharedCount = 0
         if (householdId.isNotBlank()) {

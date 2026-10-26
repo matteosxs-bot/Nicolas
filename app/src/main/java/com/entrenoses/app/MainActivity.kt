@@ -4,6 +4,8 @@ import android.os.Bundle
 import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -759,6 +761,23 @@ private fun saveBudgets(context: Context, budgets: List<BudgetLimit>) {
 
 @Composable
 private fun ReportsPage(modifier: Modifier, entries: List<MoneyEntry>) {
+    val context = LocalContext.current
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) {
+            val csv = buildString {
+                appendLine("Data;Descrição;Tipo;Categoria;Responsável;Valor;Situação")
+                entries.forEach { entry ->
+                    val fields = listOf(
+                        entry.date, entry.title, if (entry.income) "Entrada" else "Saída",
+                        entry.category, entry.person, String.format(Locale("pt", "BR"), "%.2f", entry.amount),
+                        if (entry.paid) if (entry.income) "Recebido" else "Pago" else "Pendente"
+                    )
+                    appendLine(fields.joinToString(";") { csvField(it) })
+                }
+            }
+            runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(csv) } }
+        }
+    }
     val today = currentDate()
     val monthKey = today.substring(3)
     val yearKey = today.takeLast(4)
@@ -775,6 +794,11 @@ private fun ReportsPage(modifier: Modifier, entries: List<MoneyEntry>) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Relatórios", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold) }
         item { Text("Somente movimentos pagos ou recebidos entram nos totais.", color = Muted, fontSize = 13.sp) }
+        item {
+            Button(onClick = { exportLauncher.launch("entre-noses-movimentos.csv") }) {
+                Text("Exportar movimentos em CSV")
+            }
+        }
         item {
             Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(18.dp)) {
                 Text("Este mês", color = Purple, fontWeight = FontWeight.Bold)
@@ -807,3 +831,6 @@ private fun ReportsPage(modifier: Modifier, entries: List<MoneyEntry>) {
         }
     }
 }
+
+
+private fun csvField(value: String): String = "\"" + value.replace("\"", "\"\"") + "\""

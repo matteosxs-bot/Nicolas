@@ -24,6 +24,17 @@ create table if not exists public.private_snapshots (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.shared_records (
+  household_id uuid not null references public.households(id) on delete cascade,
+  record_id uuid not null,
+  record_type text not null check (record_type in ('transaction','goal','shopping','budget','bill','vehicle','pet','subscription','debt','account','credit_card','stock')),
+  payload jsonb not null default '{}'::jsonb,
+  updated_by uuid not null references auth.users(id),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz,
+  primary key (household_id, record_id)
+);
+
 create table if not exists public.shared_snapshots (
   household_id uuid primary key references public.households(id) on delete cascade,
   payload jsonb not null default '{}'::jsonb,
@@ -34,7 +45,7 @@ create table if not exists public.shared_snapshots (
 alter table public.households enable row level security;
 alter table public.household_members enable row level security;
 alter table public.private_snapshots enable row level security;
-alter table public.shared_snapshots enable row level security;
+alter table public.shared_snapshots enable row level security;\nalter table public.shared_records enable row level security;
 
 create or replace function public.is_household_member(target_household uuid)
 returns boolean
@@ -77,6 +88,23 @@ create policy "household members can update shared snapshot"
 on public.shared_snapshots for update to authenticated
 using (public.is_household_member(household_id))
 with check (public.is_household_member(household_id) and updated_by = auth.uid());
+
+create policy "members can read shared records"
+on public.shared_records for select to authenticated
+using (public.is_household_member(household_id));
+
+create policy "members can insert shared records"
+on public.shared_records for insert to authenticated
+with check (public.is_household_member(household_id) and updated_by = auth.uid());
+
+create policy "members can update shared records"
+on public.shared_records for update to authenticated
+using (public.is_household_member(household_id))
+with check (public.is_household_member(household_id) and updated_by = auth.uid());
+
+create policy "members can delete shared records"
+on public.shared_records for delete to authenticated
+using (public.is_household_member(household_id));
 
 create or replace function public.create_household(household_name text)
 returns table(household_id uuid, invite_code text)
@@ -128,4 +156,4 @@ grant execute on function public.join_household(text) to authenticated;
 grant select, update on public.households to authenticated;
 grant select on public.household_members to authenticated;
 grant select, insert, update, delete on public.private_snapshots to authenticated;
-grant select, insert, update on public.shared_snapshots to authenticated;
+grant select, insert, update on public.shared_snapshots to authenticated;\ngrant select, insert, update, delete on public.shared_records to authenticated;

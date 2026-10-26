@@ -112,7 +112,38 @@ internal object CloudSync {
             } else if (remoteValue == null) result.put(key, localValue)
             else result.put(key, localValue)
         }
+        applyTrashTombstones(result)
         return result
+    }
+
+    private fun applyTrashTombstones(payload: JSONObject) {
+        val now = System.currentTimeMillis()
+        val retention = 30L * 24L * 60L * 60L * 1000L
+        val trashEnvelope = payload.optJSONObject("trash") ?: return
+        if (trashEnvelope.optString("type") != "string") return
+        val rawTrash = trashEnvelope.optString("value", "[]")
+        val trash = runCatching { JSONArray(rawTrash) }.getOrElse { JSONArray() }
+        val validTrash = JSONArray()
+        val deleted = mutableSetOf<String>()
+        for (i in 0 until trash.length()) {
+            val item = trash.optJSONObject(i) ?: continue
+            val deletedAt = item.optLong("deletedAt")
+            if (deletedAt <= 0L || now - deletedAt >= retention) continue
+            validTrash.put(item)
+            val entry = item.optJSONObject("entry") ?: continue
+            deleted.add(listOf("title", "date", "person", "category", "income").joinToString("|") { entry.opt(it)?.toString().orEmpty() }.lowercase())
+        }
+        payload.put("trash", JSONObject().put("type", "string").put("value", validTrash.toString()))
+        val entriesEnvelope = payload.optJSONObject("entries") ?: return
+        if (entriesEnvelope.optString("type") != "string") return
+        val entries = runCatching { JSONArray(entriesEnvelope.optString("value", "[]")) }.getOrElse { JSONArray() }
+        val filtered = JSONArray()
+        for (i in 0 until entries.length()) {
+            val entry = entries.optJSONObject(i) ?: continue
+            val identity = listOf("title", "date", "person", "category", "income").joinToString("|") { entry.opt(it)?.toString().orEmpty() }.lowercase()
+            if (identity !in deleted) filtered.put(entry)
+        }
+        payload.put("entries", JSONObject().put("type", "string").put("value", filtered.toString()))
     }
 
     private fun mergeArrays(remote: JSONArray, local: JSONArray, identityKey: String?): JSONArray {

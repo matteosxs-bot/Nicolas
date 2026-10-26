@@ -40,6 +40,7 @@ import java.text.NumberFormat
 import java.util.Locale
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Calendar
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -59,7 +60,7 @@ private data class Goal(val title: String, val target: Double, val saved: Double
 private data class TrashEntry(val entry: MoneyEntry, val deletedAt: Long)
 private data class ShoppingItem(val name: String, val checked: Boolean = false)
 private data class BudgetLimit(val category: String, val limit: Double)
-private data class Bill(val title: String, val amount: Double, val dueDate: String, val paid: Boolean = false)
+private data class Bill(val title: String, val amount: Double, val dueDate: String, val paid: Boolean = false, val recurring: Boolean = false)
 private val brl = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
 private fun money(value: Double) = brl.format(value)
 private fun currentDate() = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date())
@@ -230,7 +231,14 @@ private fun EntreNosesApp() {
                     onTogglePaid = { bill ->
                         val index = bills.indexOf(bill)
                         if (index >= 0) {
-                            bills[index] = bill.copy(paid = !bill.paid)
+                            val updated = bill.copy(paid = !bill.paid)
+                            bills[index] = updated
+                            if (!bill.paid && bill.recurring) {
+                                val next = nextMonthBill(updated)
+                                if (next != null && bills.none { it.title == next.title && it.dueDate == next.dueDate }) {
+                                    bills.add(next)
+                                }
+                            }
                             saveBills(context, bills.toList())
                         }
                     },
@@ -905,6 +913,7 @@ private fun BillDialog(onDismiss: () -> Unit, onSave: (Bill) -> Unit) {
     var title by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var dueDate by remember { mutableStateOf(currentDate()) }
+    var recurring by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Nova conta") },
@@ -913,12 +922,13 @@ private fun BillDialog(onDismiss: () -> Unit, onSave: (Bill) -> Unit) {
                 OutlinedTextField(title, { title = it }, label = { Text("Nome da conta") }, singleLine = true)
                 OutlinedTextField(amount, { amount = it }, label = { Text("Valor em R$") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
                 OutlinedTextField(dueDate, { dueDate = it }, label = { Text("Vencimento (DD/MM/AAAA)") }, singleLine = true)
+                FilterChip(selected = recurring, onClick = { recurring = !recurring }, label = { Text("Repetir todo mês") })
             }
         },
         confirmButton = { TextButton(onClick = {
             val parsed = amount.replace(",", ".").toDoubleOrNull()
             if (title.isNotBlank() && parsed != null && parsed > 0 && isValidDate(dueDate.trim())) {
-                onSave(Bill(title.trim(), parsed, dueDate.trim(), false))
+                onSave(Bill(title.trim(), parsed, dueDate.trim(), false, recurring))
             }
         }) { Text("Salvar conta") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
@@ -929,7 +939,7 @@ private fun loadBills(context: Context): List<Bill> = runCatching {
     val array = JSONArray(prefs(context).getString("bills", "[]"))
     (0 until array.length()).map { i ->
         val item = array.getJSONObject(i)
-        Bill(item.optString("title"), item.optDouble("amount"), item.optString("dueDate"), item.optBoolean("paid"))
+        Bill(item.optString("title"), item.optDouble("amount"), item.optString("dueDate"), item.optBoolean("paid"), item.optBoolean("recurring"))
     }
 }.getOrDefault(emptyList())
 
@@ -941,7 +951,20 @@ private fun saveBills(context: Context, bills: List<Bill>) {
             put("amount", bill.amount)
             put("dueDate", bill.dueDate)
             put("paid", bill.paid)
+            put("recurring", bill.recurring)
         })
     }
     prefs(context).edit().putString("bills", array.toString()).apply()
+}
+
+
+private fun nextMonthBill(bill: Bill): Bill? {
+    val millis = dateMillis(bill.dueDate) ?: return null
+    val calendar = Calendar.getInstance().apply { time = Date(millis) }
+    val day = calendar.get(Calendar.DAY_OF_MONTH)
+    calendar.set(Calendar.DAY_OF_MONTH, 1)
+    calendar.add(Calendar.MONTH, 1)
+    calendar.set(Calendar.DAY_OF_MONTH, day.coerceAtMost(calendar.getActualMaximum(Calendar.DAY_OF_MONTH)))
+    val nextDate = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(calendar.time)
+    return bill.copy(dueDate = nextDate, paid = false)
 }

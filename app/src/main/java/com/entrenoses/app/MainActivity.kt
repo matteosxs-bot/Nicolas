@@ -92,6 +92,14 @@ private fun EntreNosesApp(onSignOut: () -> Unit) {
     val goals = remember { mutableStateListOf<Goal>().apply { addAll(loadGoals(context)) } }
     val budgets = remember { mutableStateListOf<BudgetLimit>().apply { addAll(loadBudgets(context)) } }
     val bills = remember { mutableStateListOf<Bill>().apply { addAll(loadBills(context)) } }
+    val reloadAfterSync: () -> Unit = {
+        entries.clear(); entries.addAll(loadEntries(context))
+        trash.clear(); trash.addAll(loadTrash(context))
+        shopping.clear(); shopping.addAll(loadShopping(context))
+        goals.clear(); goals.addAll(loadGoals(context))
+        budgets.clear(); budgets.addAll(loadBudgets(context))
+        bills.clear(); bills.addAll(loadBills(context))
+    }
     var showEntry by remember { mutableStateOf(false) }
     var editingEntry by remember { mutableStateOf<MoneyEntry?>(null) }
     var showGoal by remember { mutableStateOf(false) }
@@ -226,7 +234,7 @@ private fun EntreNosesApp(onSignOut: () -> Unit) {
                     showDeposit = true
                 }
                 Page.More -> MorePage(Modifier.padding(padding), onOpenTrash = { page = Page.Trash }, onOpenBudgets = { page = Page.Budgets }, onOpenReports = { page = Page.Reports }, onOpenBills = { page = Page.Bills }, onOpenHousehold = { page = Page.Household }, onSignOut = onSignOut)
-                Page.Household -> HouseholdPage(Modifier.padding(padding))
+                Page.Household -> HouseholdPage(Modifier.padding(padding), onSynced = reloadAfterSync)
                 Page.Reports -> ReportsPage(Modifier.padding(padding), entries)
                 Page.Bills -> BillsPage(
                     Modifier.padding(padding), bills,

@@ -131,7 +131,8 @@ internal object CloudSync {
             if (deletedAt <= 0L || now - deletedAt >= retention) continue
             validTrash.put(item)
             val entry = item.optJSONObject("entry") ?: continue
-            deleted.add(listOf("title", "date", "person", "category", "income").joinToString("|") { entry.opt(it)?.toString().orEmpty() }.lowercase())
+            val stableId = entry.optString("id")
+            deleted.add(if (stableId.isNotBlank()) "id|$stableId" else listOf("title", "date", "person", "category", "income", "amount").joinToString("|") { entry.opt(it)?.toString().orEmpty() }.lowercase())
         }
         payload.put("trash", JSONObject().put("type", "string").put("value", validTrash.toString()))
         val entriesEnvelope = payload.optJSONObject("entries") ?: return
@@ -140,7 +141,8 @@ internal object CloudSync {
         val filtered = JSONArray()
         for (i in 0 until entries.length()) {
             val entry = entries.optJSONObject(i) ?: continue
-            val identity = listOf("title", "date", "person", "category", "income").joinToString("|") { entry.opt(it)?.toString().orEmpty() }.lowercase()
+            val stableId = entry.optString("id")
+            val identity = if (stableId.isNotBlank()) "id|$stableId" else listOf("title", "date", "person", "category", "income", "amount").joinToString("|") { entry.opt(it)?.toString().orEmpty() }.lowercase()
             if (identity !in deleted) filtered.put(entry)
         }
         payload.put("entries", JSONObject().put("type", "string").put("value", filtered.toString()))
@@ -150,7 +152,7 @@ internal object CloudSync {
         val records = linkedMapOf<String, Any>()
         fun identity(item: Any): String {
             if (item is JSONObject) {
-                if (identityKey == "shopping" || identityKey == "name") {
+                if (identityKey == "shopping" || identityKey == "name" || identityKey == "entries") {
                     val stableId = item.optString("id")
                     if (stableId.isNotBlank()) return "id|$stableId"
                 }

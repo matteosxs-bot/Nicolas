@@ -121,6 +121,14 @@ internal object CloudAuth {
         authPreferences(context).edit().remove(SESSION_KEY).commit()
     }
 
+    suspend fun refreshSession(context: Context): AuthSession = withContext(Dispatchers.IO) {
+        val current = savedSession(context) ?: error("Entre na sua conta primeiro.")
+        if (current.refreshToken.isBlank()) return@withContext current
+        val json = request("/auth/v1/token?grant_type=refresh_token", "POST",
+            JSONObject().put("refresh_token", current.refreshToken))
+        parseAndSave(context, json)
+    }
+
     suspend fun signIn(context: Context, email: String, password: String): AuthSession = withContext(Dispatchers.IO) {
         requireConfigured()
         val json = request("/auth/v1/token?grant_type=password", "POST",

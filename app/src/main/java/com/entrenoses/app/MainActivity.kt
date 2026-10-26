@@ -100,6 +100,18 @@ private fun EntreNosesApp(onSignOut: () -> Unit) {
         budgets.clear(); budgets.addAll(loadBudgets(context))
         bills.clear(); bills.addAll(loadBills(context))
     }
+    var cloudSyncStatus by remember { mutableStateOf(if (CloudAuth.isConfigured()) "Conectando à nuvem..." else "Dados salvos neste aparelho") }
+    LaunchedEffect(Unit) {
+        if (CloudAuth.isConfigured()) {
+            try {
+                CloudSync.sync(context)
+                reloadAfterSync()
+                cloudSyncStatus = "Sincronização atualizada"
+            } catch (_: Exception) {
+                cloudSyncStatus = "Sincronização pendente"
+            }
+        }
+    }
     var showEntry by remember { mutableStateOf(false) }
     var editingEntry by remember { mutableStateOf<MoneyEntry?>(null) }
     var showGoal by remember { mutableStateOf(false) }
@@ -126,6 +138,7 @@ private fun EntreNosesApp(onSignOut: () -> Unit) {
                 ) {
                     Text("ENTRE NOSES", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                     Text("Noses", color = White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(cloudSyncStatus, color = Muted, fontSize = 11.sp)
                 }
             },
             bottomBar = {

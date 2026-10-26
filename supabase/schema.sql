@@ -53,11 +53,17 @@ returns boolean
 language sql stable security definer
 set search_path = public
 as $$
-  select exists (
+  select auth.uid() is not null and exists (
     select 1 from public.household_members
     where household_id = target_household and user_id = auth.uid()
   );
-$$;
+$;
+
+-- Membership checks are only callable by signed-in users. Policies use this
+-- function under the authenticated role; anonymous callers get no signal.
+revoke all on function public.is_household_member(uuid) from public;
+revoke all on function public.is_household_member(uuid) from anon;
+grant execute on function public.is_household_member(uuid) to authenticated;
 
 create policy "members can read their households"
 on public.households for select to authenticated
@@ -137,6 +143,9 @@ begin
   select id into target_id from public.households
     where invite_code = upper(trim(code)) limit 1;
   if target_id is null then raise exception 'Invalid invitation code'; end if;
+  -- Serialize joins for this household so two simultaneous requests cannot
+  -- both observe one free slot and create a third member.
+  perform pg_advisory_xact_lock(hashtextextended(target_id::text, 0));
   if exists (select 1 from public.household_members where household_id = target_id and user_id = auth.uid()) then
     return target_id;
   end if;

@@ -76,6 +76,7 @@ private fun EntreNosesApp() {
     val shopping = remember { mutableStateListOf<String>().apply { addAll(loadShopping(context)) } }
     val goals = remember { mutableStateListOf<Goal>().apply { addAll(loadGoals(context)) } }
     var showEntry by remember { mutableStateOf(false) }
+    var editingEntry by remember { mutableStateOf<MoneyEntry?>(null) }
     var showGoal by remember { mutableStateOf(false) }
     var showShopping by remember { mutableStateOf(false) }
     var showDeposit by remember { mutableStateOf(false) }
@@ -142,6 +143,7 @@ private fun EntreNosesApp() {
                 Page.Home -> HomePage(
                     Modifier.padding(padding), income, expenses, pendingExpenses, entries, goals,
                     onViewAll = { page = Page.Transactions },
+                    onEdit = { entry -> editingEntry = entry; showEntry = true },
                     onAddDeposit = { goal -> selectedGoal = goal; showDeposit = true },
                     onDelete = { entry ->
                         entries.remove(entry)
@@ -159,6 +161,7 @@ private fun EntreNosesApp() {
                 )
                 Page.Transactions -> TransactionsPage(
                     Modifier.padding(padding), entries,
+                    onEdit = { entry -> editingEntry = entry; showEntry = true },
                     onDelete = { entry ->
                         entries.remove(entry)
                         trash.add(0, TrashEntry(entry, System.currentTimeMillis()))
@@ -201,11 +204,14 @@ private fun EntreNosesApp() {
     }
 
     if (showEntry) EntryDialog(
-        onDismiss = { showEntry = false },
-        onSave = { title, amount, isIncome, person, category, paid ->
-            entries.add(0, MoneyEntry(title, amount, isIncome, person, category, currentDate(), paid))
+        initialEntry = editingEntry,
+        onDismiss = { showEntry = false; editingEntry = null },
+        onSave = { updated ->
+            val existingIndex = if (editingEntry == null) -1 else entries.indexOf(editingEntry)
+            if (existingIndex >= 0) entries[existingIndex] = updated else entries.add(0, updated)
             saveEntries(context, entries.toList())
             showEntry = false
+            editingEntry = null
         }
     )
     if (showGoal) GoalDialog(
@@ -241,7 +247,7 @@ private fun EntreNosesApp() {
 }
 
 @Composable
-private fun HomePage(modifier: Modifier, income: Double, expenses: Double, pendingExpenses: Double, entries: List<MoneyEntry>, goals: List<Goal>, onViewAll: () -> Unit, onAddDeposit: (Goal) -> Unit, onDelete: (MoneyEntry) -> Unit, onTogglePaid: (MoneyEntry) -> Unit) {
+private fun HomePage(modifier: Modifier, income: Double, expenses: Double, pendingExpenses: Double, entries: List<MoneyEntry>, goals: List<Goal>, onViewAll: () -> Unit, onEdit: (MoneyEntry) -> Unit, onAddDeposit: (Goal) -> Unit, onDelete: (MoneyEntry) -> Unit, onTogglePaid: (MoneyEntry) -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF4B3372), Color(0xFF21182E))), RoundedCornerShape(24.dp)).padding(22.dp)) {
@@ -260,7 +266,7 @@ private fun HomePage(modifier: Modifier, income: Double, expenses: Double, pendi
         }
         item { SectionTitle("Movimentos recentes", "Ver todos", onViewAll) }
         if (entries.isEmpty()) item { EmptyCard("Nenhum movimento cadastrado ainda.") }
-        items(entries.take(5)) { entry -> EntryRow(entry, onTogglePaid, onDelete) }
+        items(entries.take(5)) { entry -> EntryRow(entry, onTogglePaid, onDelete, onEdit) }
         item { SectionTitle("Metas de economia", null, null) }
         if (goals.isEmpty()) item { EmptyCard("Crie uma meta para acompanhar suas economias.") }
         items(goals.take(3)) { GoalCard(it, onAddDeposit) }
@@ -269,12 +275,12 @@ private fun HomePage(modifier: Modifier, income: Double, expenses: Double, pendi
 }
 
 @Composable
-private fun TransactionsPage(modifier: Modifier, entries: List<MoneyEntry>, onDelete: (MoneyEntry) -> Unit, onTogglePaid: (MoneyEntry) -> Unit) {
+private fun TransactionsPage(modifier: Modifier, entries: List<MoneyEntry>, onEdit: (MoneyEntry) -> Unit, onDelete: (MoneyEntry) -> Unit, onTogglePaid: (MoneyEntry) -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Movimentos", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold) }
         item { Text("Entradas e saídas registradas neste aparelho.", color = Muted, fontSize = 13.sp) }
         if (entries.isEmpty()) item { EmptyCard("Ainda não há movimentos.") }
-        items(entries) { EntryRow(it, onTogglePaid, onDelete) }
+        items(entries) { EntryRow(it, onTogglePaid, onDelete, onEdit) }
     }
 }
 
@@ -338,7 +344,7 @@ private fun SectionTitle(title: String, action: String?, onClick: (() -> Unit)?)
 }
 
 @Composable
-private fun EntryRow(entry: MoneyEntry, onTogglePaid: (MoneyEntry) -> Unit, onDelete: (MoneyEntry) -> Unit) {
+private fun EntryRow(entry: MoneyEntry, onTogglePaid: (MoneyEntry) -> Unit, onDelete: (MoneyEntry) -> Unit, onEdit: (MoneyEntry) -> Unit) {
     Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(42.dp).background(if (entry.income) Color(0xFF244735) else Color(0xFF452631), CircleShape), contentAlignment = Alignment.Center) {
             Icon(if (entry.income) Icons.Default.CheckCircle else Icons.Default.AccountBalanceWallet, null, tint = if (entry.income) Green else Red)

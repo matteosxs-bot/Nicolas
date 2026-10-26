@@ -287,12 +287,14 @@ private fun EntreNosesApp(onSignOut: () -> Unit) {
                     Modifier.padding(padding), trash,
                     onRestore = { item ->
                         trash.remove(item)
+                        clearEntryTombstone(context, item.entry.id)
                         entries.add(0, item.entry)
                         saveTrash(context, trash.toList())
                         saveEntries(context, entries.toList())
                         page = Page.Transactions
                     },
                     onDeletePermanently = { item ->
+                        markEntryTombstone(context, item.entry.id)
                         trash.remove(item)
                         saveTrash(context, trash.toList())
                     }
@@ -724,19 +726,41 @@ private fun TrashPage(
     }
 }
 
+private fun markEntryTombstone(context: Context, entryId: String) {
+    if (entryId.isBlank()) return
+    val store = prefs(context)
+    val existing = runCatching { JSONArray(store.getString("deleted_entry_ids", "[]")) }.getOrElse { JSONArray() }
+    val ids = linkedSetOf<String>()
+    for (i in 0 until existing.length()) existing.optString(i).takeIf { it.isNotBlank() }?.let(ids::add)
+    ids.add(entryId)
+    store.edit().putString("deleted_entry_ids", JSONArray(ids.toList()).toString()).commit()
+}
+
+private fun clearEntryTombstone(context: Context, entryId: String) {
+    if (entryId.isBlank()) return
+    val store = prefs(context)
+    val existing = runCatching { JSONArray(store.getString("deleted_entry_ids", "[]")) }.getOrElse { JSONArray() }
+    val ids = (0 until existing.length()).map { existing.optString(it) }.filter { it.isNotBlank() && it != entryId }
+    store.edit().putString("deleted_entry_ids", JSONArray(ids).toString()).commit()
+}
+
 private fun loadTrash(context: Context): List<TrashEntry> = runCatching {
     val cutoff = System.currentTimeMillis() - 30L * 24L * 60L * 60L * 1000L
     val array = JSONArray(prefs(context).getString("trash", "[]"))
     (0 until array.length()).mapNotNull { i ->
         val item = array.getJSONObject(i)
         val deletedAt = item.optLong("deletedAt")
-        if (deletedAt < cutoff) null else {
-            val entry = item.getJSONObject("entry")
+        val entry = item.optJSONObject("entry") ?: return@mapNotNull null
+        val entryId = entry.optString("id").ifBlank { "legacy-trash-$i-${entry.optString("title").hashCode()}-${entry.optDouble("amount")}" }
+        if (deletedAt < cutoff) {
+            markEntryTombstone(context, entryId)
+            null
+        } else {
             TrashEntry(
                 MoneyEntry(
                     entry.optString("title"), entry.optDouble("amount"), entry.optBoolean("income"),
                     entry.optString("person", "Matteo"), entry.optString("category", "Outros"),
-                    entry.optString("date", currentDate()), entry.optBoolean("paid", false), entry.optString("id").ifBlank { "legacy-trash-$i-${entry.optString("title").hashCode()}-${entry.optDouble("amount")}" }
+                    entry.optString("date", currentDate()), entry.optBoolean("paid", false), entryId
                 ),
                 deletedAt
             )

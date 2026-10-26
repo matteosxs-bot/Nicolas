@@ -56,6 +56,11 @@ private data class ShoppingItem(val name: String, val checked: Boolean = false)
 private val brl = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
 private fun money(value: Double) = brl.format(value)
 private fun currentDate() = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date())
+private fun isValidDate(value: String): Boolean {
+    val format = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).apply { isLenient = false }
+    val parsed = runCatching { format.parse(value) }.getOrNull() ?: return false
+    return format.format(parsed) == value
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -414,6 +419,7 @@ private fun EmptyCard(message: String) {
 private fun EntryDialog(initialEntry: MoneyEntry?, onDismiss: () -> Unit, onSave: (MoneyEntry) -> Unit) {
     var title by remember(initialEntry) { mutableStateOf(initialEntry?.title.orEmpty()) }
     var amount by remember(initialEntry) { mutableStateOf(initialEntry?.amount?.toString().orEmpty()) }
+    var date by remember(initialEntry) { mutableStateOf(initialEntry?.date ?: currentDate()) }
     var income by remember(initialEntry) { mutableStateOf(initialEntry?.income ?: false) }
     var person by remember(initialEntry) { mutableStateOf(initialEntry?.person ?: "Matteo") }
     var category by remember(initialEntry) { mutableStateOf(initialEntry?.category ?: "Outros") }
@@ -425,6 +431,7 @@ private fun EntryDialog(initialEntry: MoneyEntry?, onDismiss: () -> Unit, onSave
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(title, { title = it }, label = { Text("Descrição") }, singleLine = true)
                 OutlinedTextField(amount, { amount = it }, label = { Text("Valor em R$") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                OutlinedTextField(date, { date = it }, label = { Text("Data (DD/MM/AAAA)") }, singleLine = true)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     FilterChip(selected = !income, onClick = { income = false }, label = { Text("Saída") })
                     Spacer(Modifier.width(8.dp))
@@ -448,8 +455,8 @@ private fun EntryDialog(initialEntry: MoneyEntry?, onDismiss: () -> Unit, onSave
         },
         confirmButton = { TextButton(onClick = {
             val parsed = amount.replace(",", ".").toDoubleOrNull()
-            if (title.isNotBlank() && parsed != null && parsed > 0) {
-                onSave(MoneyEntry(title.trim(), parsed, income, person, category.ifBlank { "Outros" }, initialEntry?.date ?: currentDate(), paid))
+            if (title.isNotBlank() && parsed != null && parsed > 0 && isValidDate(date.trim())) {
+                onSave(MoneyEntry(title.trim(), parsed, income, person, category.ifBlank { "Outros" }, date.trim(), paid))
             }
         }) { Text(if (initialEntry == null) "Salvar" else "Salvar alterações") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }

@@ -160,7 +160,7 @@ internal fun HouseholdPage(modifier: Modifier, onSynced: () -> Unit) {
                 }, enabled = !busy && CloudAuth.isConfigured() && joinCode.isNotBlank()
             ) { Text("Entrar com convite") }
         }
-        if (message.isNotBlank()) Text(message, color = if (message.contains("criado") || message.contains("entrou") || message.contains("copiado")) Color(0xFF9EE6BD) else Color(0xFFFFA8B5), fontSize = 13.sp)
+        if (message.isNotBlank()) Text(message, color = if (message.contains("criado") || message.contains("entrou") || message.contains("copiado") || message.contains("sincronizado") || message.contains("Sincronização atualizada")) Color(0xFF9EE6BD) else Color(0xFFFFA8B5), fontSize = 13.sp)
         Text("Movimentos, metas, contas e limites ficam privados por conta. A lista de compras é compartilhada no espaço do casal. A sincronização requer servidor Supabase configurado.", color = Color(0xFFB8AEC9), fontSize = 12.sp)
     }
 }

@@ -31,7 +31,7 @@ internal object CloudSync {
             session.accessToken
         )?.optJSONObject("payload")
 
-        val mergedPrivate = mergePayloads(remotePrivate, localPrivate, setOf("entries", "goals", "budgets", "bills", "trash", "transport_records", "stock_items", "commitments"))
+        val mergedPrivate = mergePayloads(remotePrivate, localPrivate, setOf("entries", "goals", "budgets", "bills", "trash", "deleted_entry_ids", "transport_records", "stock_items", "commitments"))
         putSnapshot(
             "/rest/v1/private_snapshots?on_conflict=user_id",
             JSONObject().put("user_id", session.userId).put("payload", mergedPrivate),
@@ -119,22 +119,32 @@ internal object CloudSync {
     private fun applyTrashTombstones(payload: JSONObject) {
         val now = System.currentTimeMillis()
         val retention = 30L * 24L * 60L * 60L * 1000L
-        val trashEnvelope = payload.optJSONObject("trash") ?: return
-        if (trashEnvelope.optString("type") != "string") return
-        val rawTrash = trashEnvelope.optString("value", "[]")
-        val trash = runCatching { JSONArray(rawTrash) }.getOrElse { JSONArray() }
+        val tombstoneEnvelope = payload.optJSONObject("deleted_entry_ids")
+        val permanentIds = linkedSetOf<String>()
+        if (tombstoneEnvelope?.optString("type") == "string") {
+            val stored = runCatching { JSONArray(tombstoneEnvelope.optString("value", "[]")) }.getOrElse { JSONArray() }
+            for (i in 0 until stored.length()) stored.optString(i).takeIf { it.isNotBlank() }?.let(permanentIds::add)
+        }
+        val trashEnvelope = payload.optJSONObject("trash")
+        val trash = if (trashEnvelope?.optString("type") == "string") {
+            runCatching { JSONArray(trashEnvelope.optString("value", "[]")) }.getOrElse { JSONArray() }
+        } else JSONArray()
         val validTrash = JSONArray()
-        val deleted = mutableSetOf<String>()
+        val activeDeleted = mutableSetOf<String>()
         for (i in 0 until trash.length()) {
             val item = trash.optJSONObject(i) ?: continue
             val deletedAt = item.optLong("deletedAt")
-            if (deletedAt <= 0L || now - deletedAt >= retention) continue
-            validTrash.put(item)
             val entry = item.optJSONObject("entry") ?: continue
             val stableId = entry.optString("id")
-            deleted.add(if (stableId.isNotBlank()) "id|$stableId" else listOf("title", "date", "person", "category", "income", "amount").joinToString("|") { entry.opt(it)?.toString().orEmpty() }.lowercase())
+            if (deletedAt <= 0L || now - deletedAt >= retention) {
+                if (stableId.isNotBlank()) permanentIds.add(stableId)
+                continue
+            }
+            validTrash.put(item)
+            if (stableId.isNotBlank()) activeDeleted.add(stableId)
         }
         payload.put("trash", JSONObject().put("type", "string").put("value", validTrash.toString()))
+        payload.put("deleted_entry_ids", JSONObject().put("type", "string").put("value", JSONArray(permanentIds.toList()).toString()))
         val entriesEnvelope = payload.optJSONObject("entries") ?: return
         if (entriesEnvelope.optString("type") != "string") return
         val entries = runCatching { JSONArray(entriesEnvelope.optString("value", "[]")) }.getOrElse { JSONArray() }
@@ -142,8 +152,8 @@ internal object CloudSync {
         for (i in 0 until entries.length()) {
             val entry = entries.optJSONObject(i) ?: continue
             val stableId = entry.optString("id")
-            val identity = if (stableId.isNotBlank()) "id|$stableId" else listOf("title", "date", "person", "category", "income", "amount").joinToString("|") { entry.opt(it)?.toString().orEmpty() }.lowercase()
-            if (identity !in deleted) filtered.put(entry)
+            val identity = if (stableId.isNotBlank()) stableId else listOf("title", "date", "person", "category", "income", "amount").joinToString("|") { entry.opt(it)?.toString().orEmpty() }.lowercase()
+            if (stableId !in permanentIds && stableId !in activeDeleted && identity !in activeDeleted) filtered.put(entry)
         }
         payload.put("entries", JSONObject().put("type", "string").put("value", filtered.toString()))
     }

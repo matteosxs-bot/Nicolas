@@ -1080,6 +1080,9 @@ private fun entryIdentity(entry: MoneyEntry): String =
         entry.category.trim().lowercase(Locale.ROOT), entry.person.trim().lowercase(Locale.ROOT))
         .joinToString("|")
 
+private fun csvField(value: String): String = "\"" + value.replace("\"", "\"\"") + "\""
+
+
 
 @Composable
 private fun BillsPage(

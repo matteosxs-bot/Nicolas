@@ -71,6 +71,8 @@ private fun EntreNosesApp() {
     var showEntry by remember { mutableStateOf(false) }
     var showGoal by remember { mutableStateOf(false) }
     var showShopping by remember { mutableStateOf(false) }
+    var showDeposit by remember { mutableStateOf(false) }
+    var selectedGoal by remember { mutableStateOf<Goal?>(null) }
     val income = entries.filter { it.income && it.paid }.sumOf { it.amount }
     val expenses = entries.filter { !it.income && it.paid }.sumOf { it.amount }
     val pendingExpenses = entries.filter { !it.income && !it.paid }.sumOf { it.amount }
@@ -132,6 +134,7 @@ private fun EntreNosesApp() {
                 Page.Home -> HomePage(
                     Modifier.padding(padding), income, expenses, pendingExpenses, entries, goals,
                     onViewAll = { page = Page.Transactions },
+                    onAddDeposit = { goal -> selectedGoal = goal; showDeposit = true },
                     onTogglePaid = { entry ->
                         val index = entries.indexOf(entry)
                         if (index >= 0) {
@@ -151,7 +154,10 @@ private fun EntreNosesApp() {
                     shopping.remove(it)
                     saveShopping(context, shopping.toList())
                 }
-                Page.Goals -> GoalsPage(Modifier.padding(padding), goals)
+                Page.Goals -> GoalsPage(Modifier.padding(padding), goals) { goal ->
+                    selectedGoal = goal
+                    showDeposit = true
+                }
                 Page.More -> MorePage(Modifier.padding(padding))
             }
         }
@@ -181,10 +187,24 @@ private fun EntreNosesApp() {
             showShopping = false
         }
     )
+    if (showDeposit) DepositDialog(
+        goalTitle = selectedGoal?.title.orEmpty(),
+        onDismiss = { showDeposit = false; selectedGoal = null },
+        onSave = { amount ->
+            val goal = selectedGoal
+            val index = if (goal == null) -1 else goals.indexOf(goal)
+            if (index >= 0) {
+                goals[index] = goals[index].copy(saved = goals[index].saved + amount)
+                saveGoals(context, goals.toList())
+            }
+            showDeposit = false
+            selectedGoal = null
+        }
+    )
 }
 
 @Composable
-private fun HomePage(modifier: Modifier, income: Double, expenses: Double, pendingExpenses: Double, entries: List<MoneyEntry>, goals: List<Goal>, onViewAll: () -> Unit, onTogglePaid: (MoneyEntry) -> Unit) {
+private fun HomePage(modifier: Modifier, income: Double, expenses: Double, pendingExpenses: Double, entries: List<MoneyEntry>, goals: List<Goal>, onViewAll: () -> Unit, onAddDeposit: (Goal) -> Unit, onTogglePaid: (MoneyEntry) -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF4B3372), Color(0xFF21182E))), RoundedCornerShape(24.dp)).padding(22.dp)) {
@@ -206,7 +226,7 @@ private fun HomePage(modifier: Modifier, income: Double, expenses: Double, pendi
         items(entries.take(5)) { entry -> EntryRow(entry, onTogglePaid) }
         item { SectionTitle("Metas de economia", null, null) }
         if (goals.isEmpty()) item { EmptyCard("Crie uma meta para acompanhar suas economias.") }
-        items(goals.take(3)) { GoalCard(it) }
+        items(goals.take(3)) { GoalCard(it, onAddDeposit) }
         item { Text("Os dados ficam salvos neste aparelho. A sincronização entre aparelhos ainda não está disponível.", color = Muted, fontSize = 11.sp) }
     }
 }
@@ -239,12 +259,12 @@ private fun ShoppingPage(modifier: Modifier, shopping: List<String>, onRemove: (
 }
 
 @Composable
-private fun GoalsPage(modifier: Modifier, goals: List<Goal>) {
+private fun GoalsPage(modifier: Modifier, goals: List<Goal>, onAddDeposit: (Goal) -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Metas", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold) }
         item { Text("Acompanhe o progresso das economias.", color = Muted, fontSize = 13.sp) }
         if (goals.isEmpty()) item { EmptyCard("Nenhuma meta criada.") }
-        items(goals) { GoalCard(it) }
+        items(goals) { GoalCard(it, onAddDeposit) }
     }
 }
 
@@ -299,7 +319,7 @@ private fun EntryRow(entry: MoneyEntry, onTogglePaid: (MoneyEntry) -> Unit) {
 }
 
 @Composable
-private fun GoalCard(goal: Goal) {
+private fun GoalCard(goal: Goal, onAddDeposit: (Goal) -> Unit) {
     val progress = if (goal.target <= 0) 0f else (goal.saved / goal.target).toFloat().coerceIn(0f, 1f)
     Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
         Text(goal.title, color = White, fontWeight = FontWeight.SemiBold)
@@ -307,6 +327,7 @@ private fun GoalCard(goal: Goal) {
         Text("${money(goal.saved)} de ${money(goal.target)}", color = Muted, fontSize = 12.sp)
         Spacer(Modifier.height(10.dp))
         LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(7.dp), color = Purple, trackColor = Color(0xFF3A3048))
+        TextButton(onClick = { onAddDeposit(goal) }, contentPadding = PaddingValues(horizontal = 0.dp)) { Text("Adicionar depósito") }
     }
 }
 
@@ -463,4 +484,25 @@ private fun saveGoals(context: Context, goals: List<Goal>) {
         })
     }
     prefs(context).edit().putString("goals", array.toString()).apply()
+}
+
+
+@Composable
+private fun DepositDialog(goalTitle: String, onDismiss: () -> Unit, onSave: (Double) -> Unit) {
+    var amount by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Adicionar depósito") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(goalTitle, color = Muted, fontSize = 13.sp)
+                OutlinedTextField(amount, { amount = it }, label = { Text("Valor depositado (R$)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+            }
+        },
+        confirmButton = { TextButton(onClick = {
+            val parsed = amount.replace(",", ".").toDoubleOrNull()
+            if (parsed != null && parsed > 0) onSave(parsed)
+        }) { Text("Registrar depósito") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
 }

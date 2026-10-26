@@ -63,11 +63,12 @@ private data class Bill(val title: String, val amount: Double, val dueDate: Stri
 private val brl = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
 private fun money(value: Double) = brl.format(value)
 private fun currentDate() = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date())
-private fun isValidDate(value: String): Boolean {
+private fun dateMillis(value: String): Long? {
     val format = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).apply { isLenient = false }
-    val parsed = runCatching { format.parse(value) }.getOrNull() ?: return false
-    return format.format(parsed) == value
+    val parsed = runCatching { format.parse(value) }.getOrNull() ?: return null
+    return if (format.format(parsed) == value) parsed.time else null
 }
+private fun isValidDate(value: String): Boolean = dateMillis(value) != null
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -880,8 +881,9 @@ private fun BillsPage(
         item { Text("Contas a pagar", color = White, fontSize = 25.sp, fontWeight = FontWeight.Bold) }
         item { Text("Registre vencimentos e confirme manualmente quando cada conta for paga.", color = Muted, fontSize = 13.sp) }
         if (bills.isEmpty()) item { EmptyCard("Nenhuma conta cadastrada. Toque em + para adicionar.") }
-        items(bills.sortedBy { it.dueDate }) { bill ->
-            val overdue = !bill.paid && isValidDate(bill.dueDate) && bill.dueDate < today
+        items(bills.sortedBy { dateMillis(it.dueDate) ?: Long.MAX_VALUE }) { bill ->
+            val dueMillis = dateMillis(bill.dueDate)
+            val overdue = !bill.paid && dueMillis != null && dueMillis < (dateMillis(today) ?: 0L)
             Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(bill.title, Modifier.weight(1f), color = White, fontWeight = FontWeight.SemiBold)

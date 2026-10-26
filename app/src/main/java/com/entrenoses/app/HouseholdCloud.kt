@@ -76,7 +76,7 @@ private object HouseholdCloud {
 }
 
 @Composable
-internal fun HouseholdPage(modifier: Modifier) {
+internal fun HouseholdPage(modifier: Modifier, onSynced: () -> Unit) {
     val context = LocalContext.current
     val initial = remember { HouseholdCloud.saved(context) }
     var householdId by remember { mutableStateOf(initial.id) }
@@ -90,6 +90,27 @@ internal fun HouseholdPage(modifier: Modifier) {
     Column(modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Espaço do casal", color = Color(0xFFF8F5FF), fontSize = 25.sp)
         Text("O espaço usa um código de convite para limitar o acesso aos dois membros.", color = Color(0xFFB8AEC9), fontSize = 13.sp)
+        Button(
+            onClick = {
+                syncBusy = true
+                message = ""
+                scope.launch {
+                    try {
+                        val report = CloudSync.sync(context)
+                        message = report.message
+                        onSynced()
+                    } catch (e: Exception) {
+                        message = e.message ?: "Não foi possível sincronizar agora."
+                    } finally { syncBusy = false }
+                }
+            },
+            enabled = !syncBusy && CloudAuth.isConfigured(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            if (syncBusy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            else Text("Sincronizar dados com segurança")
+        }
+        Text("Cada conta sincroniza seus próprios dados financeiros. A lista de compras só é compartilhada quando os dois entram no mesmo espaço do casal.", color = Color(0xFFB8AEC9), fontSize = 12.sp)
         if (householdId.isNotBlank()) {
             Column(Modifier.fillMaxWidth().background(Color(0xFF1D1728), RoundedCornerShape(16.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Espaço conectado", color = Color(0xFF9EE6BD))
@@ -139,6 +160,6 @@ internal fun HouseholdPage(modifier: Modifier) {
             ) { Text("Entrar com convite") }
         }
         if (message.isNotBlank()) Text(message, color = if (message.contains("criado") || message.contains("entrou") || message.contains("copiado")) Color(0xFF9EE6BD) else Color(0xFFFFA8B5), fontSize = 13.sp)
-        Text("A associação de contas está implementada. A sincronização dos movimentos só será ativada depois de separar explicitamente dados pessoais e compartilhados, para não expor suas informações privadas.", color = Color(0xFFB8AEC9), fontSize = 12.sp)
+        Text("Movimentos, metas, contas e limites ficam privados por conta. A lista de compras é compartilhada no espaço do casal. A sincronização requer servidor Supabase configurado.", color = Color(0xFFB8AEC9), fontSize = 12.sp)
     }
 }

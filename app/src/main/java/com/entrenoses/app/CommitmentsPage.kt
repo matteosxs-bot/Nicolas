@@ -148,7 +148,7 @@ private fun CommitmentDialog(onDismiss: () -> Unit, onSave: (Commitment) -> Unit
     var type by remember { mutableStateOf("Dívida") }
     var name by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
-    var dueDate by remember { mutableStateOf(SimpleDateFormat("dd/MM/yyyy", Locale("pt","BR").apply { },).format(Date())) }
+    var dueDate by remember { mutableStateOf(SimpleDateFormat("dd/MM/yyyy", Locale("pt","BR")).format(Date())) }
     var recurring by remember { mutableStateOf(false) }
     var installment by remember { mutableStateOf("1") }
     var totalInstallments by remember { mutableStateOf("1") }

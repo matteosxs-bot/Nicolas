@@ -32,20 +32,29 @@ jobs:
         with:
           cmdline-tools-version: "12266719"
           packages: "platform-tools platforms;android-35 build-tools;35.0.0"
-      - name: Validate secure backend configuration
+      - name: Check secure backend configuration
+        id: backend
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        shell: bash
         run: |
-          test -n "$SUPABASE_URL" || (echo "::error::Missing SUPABASE_URL repository secret; refusing to publish an APK without cloud authentication." && exit 1)
-          test -n "$SUPABASE_ANON_KEY" || (echo "::error::Missing SUPABASE_ANON_KEY repository secret; refusing to publish an APK without cloud authentication." && exit 1)
-          case "$SUPABASE_URL" in https://*) ;; *) echo "::error::SUPABASE_URL must use HTTPS."; exit 1 ;; esac
+          if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_ANON_KEY" ]]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Backend credentials are not configured. Compile validation will run, but no APK will be published as a finished build."
+          elif [[ "$SUPABASE_URL" != https://* ]]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SUPABASE_URL must use HTTPS. Compile validation will run, but no APK will be published."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Build debug APK
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: gradle assembleDebug
       - name: Upload APK
+        if: steps.backend.outputs.configured == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: entre-noses-debug-apk

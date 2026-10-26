@@ -45,7 +45,8 @@ create table if not exists public.shared_snapshots (
 alter table public.households enable row level security;
 alter table public.household_members enable row level security;
 alter table public.private_snapshots enable row level security;
-alter table public.shared_snapshots enable row level security;\nalter table public.shared_records enable row level security;
+alter table public.shared_snapshots enable row level security;
+alter table public.shared_records enable row level security;
 
 create or replace function public.is_household_member(target_household uuid)
 returns boolean
@@ -156,4 +157,5 @@ grant execute on function public.join_household(text) to authenticated;
 grant select, update on public.households to authenticated;
 grant select on public.household_members to authenticated;
 grant select, insert, update, delete on public.private_snapshots to authenticated;
-grant select, insert, update on public.shared_snapshots to authenticated;\ngrant select, insert, update, delete on public.shared_records to authenticated;
+grant select, insert, update on public.shared_snapshots to authenticated;
+grant select, insert, update, delete on public.shared_records to authenticated;

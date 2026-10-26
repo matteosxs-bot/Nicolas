@@ -26,7 +26,8 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-private const val SECURE_PREFS = "entre_noses_secure_data_"\nprivate const val AUTH_PREFS = "entre_noses_auth_secure"
+private const val SECURE_PREFS = "entre_noses_secure_data_"
+private const val AUTH_PREFS = "entre_noses_auth_secure"
 private const val LEGACY_PREFS = "entre_noses_local_data"
 private const val SESSION_KEY = "auth_session"
 

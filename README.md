@@ -23,7 +23,7 @@ A autenticação real fica desativada enquanto o backend não estiver configurad
 O URL e a chave pública são injetados durante a compilação por secrets do GitHub Actions. Não grave chaves privadas no código nem no APK.
 
 ## Importante sobre o estado da nuvem
-O login, cadastro, recuperação de senha, armazenamento local cifrado e o esquema com políticas RLS estão no código. A sincronização automática de movimentos e módulos, convite entre os dois usuários pela interface, e testes reais de isolamento entre duas contas ainda precisam ser conectados e validados com um projeto Supabase ativo. Não considere uma build bem-sucedida como prova de que a nuvem está funcionando.
+O login, cadastro, recuperação de senha, armazenamento local cifrado, criação do espaço do casal e entrada por código de convite estão no código. A sincronização automática dos movimentos e módulos e os testes reais de isolamento entre duas contas ainda precisam ser conectados e validados com um projeto Supabase ativo. Não considere uma build bem-sucedida como prova de que a nuvem está funcionando.
 
 ## Build e testes
 O GitHub Actions executa `gradle assembleDebug` a cada alteração em `main` e publica um APK de debug como artefato. Isso confirma compilação, não substitui testes de uso em dois aparelhos.

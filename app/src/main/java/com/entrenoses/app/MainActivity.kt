@@ -56,11 +56,11 @@ private enum class Page(val label: String) {
     Home("Início"), Transactions("Movimentos"), Shopping("Compras"), Goals("Metas"), More("Mais"), Trash("Lixeira"), Budgets("Limites"), Reports("Relatórios"), Bills("Contas"), Household("Casal"), Transport("Transporte"), Inventory("Casa e pets"), Commitments("Dívidas")
 }
 private data class MoneyEntry(val title: String, val amount: Double, val income: Boolean, val person: String, val category: String, val date: String = currentDate(), val paid: Boolean = false, val id: String = java.util.UUID.randomUUID().toString())
-private data class Goal(val title: String, val target: Double, val saved: Double)
+private data class Goal(val title: String, val target: Double, val saved: Double, val id: String = java.util.UUID.randomUUID().toString())
 private data class TrashEntry(val entry: MoneyEntry, val deletedAt: Long)
 private data class ShoppingItem(val name: String, val checked: Boolean = false, val id: String = java.util.UUID.randomUUID().toString())
-private data class BudgetLimit(val category: String, val limit: Double)
-private data class Bill(val title: String, val amount: Double, val dueDate: String, val paid: Boolean = false, val recurring: Boolean = false)
+private data class BudgetLimit(val category: String, val limit: Double, val id: String = java.util.UUID.randomUUID().toString())
+private data class Bill(val title: String, val amount: Double, val dueDate: String, val paid: Boolean = false, val recurring: Boolean = false, val id: String = java.util.UUID.randomUUID().toString())
 private val brl = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
 private fun money(value: Double) = brl.format(value)
 private fun currentDate() = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date())
@@ -659,7 +659,7 @@ private fun loadGoals(context: Context): List<Goal> = runCatching {
     val array = JSONArray(prefs(context).getString("goals", "[]"))
     (0 until array.length()).map { i ->
         val item = array.getJSONObject(i)
-        Goal(item.optString("title"), item.optDouble("target"), item.optDouble("saved"))
+        Goal(item.optString("title"), item.optDouble("target"), item.optDouble("saved"), item.optString("id").ifBlank { "legacy-goal-$i-${item.optString("title").hashCode()}" })
     }
 }.getOrDefault(emptyList())
 
@@ -667,6 +667,7 @@ private fun saveGoals(context: Context, goals: List<Goal>) {
     val array = JSONArray()
     goals.forEach { goal ->
         array.put(JSONObject().apply {
+            put("id", goal.id)
             put("title", goal.title)
             put("target", goal.target)
             put("saved", goal.saved)
@@ -821,7 +822,7 @@ private fun loadBudgets(context: Context): List<BudgetLimit> = runCatching {
     val array = JSONArray(prefs(context).getString("budgets", "[]"))
     (0 until array.length()).map { i ->
         val item = array.getJSONObject(i)
-        BudgetLimit(item.optString("category"), item.optDouble("limit"))
+        BudgetLimit(item.optString("category"), item.optDouble("limit"), item.optString("id").ifBlank { "legacy-budget-$i-${item.optString("category").hashCode()}" })
     }
 }.getOrDefault(emptyList())
 
@@ -829,6 +830,7 @@ private fun saveBudgets(context: Context, budgets: List<BudgetLimit>) {
     val array = JSONArray()
     budgets.forEach { budget ->
         array.put(JSONObject().apply {
+            put("id", budget.id)
             put("category", budget.category)
             put("limit", budget.limit)
         })
@@ -976,7 +978,7 @@ private fun loadBills(context: Context): List<Bill> = runCatching {
     val array = JSONArray(prefs(context).getString("bills", "[]"))
     (0 until array.length()).map { i ->
         val item = array.getJSONObject(i)
-        Bill(item.optString("title"), item.optDouble("amount"), item.optString("dueDate"), item.optBoolean("paid"), item.optBoolean("recurring"))
+        Bill(item.optString("title"), item.optDouble("amount"), item.optString("dueDate"), item.optBoolean("paid"), item.optBoolean("recurring"), item.optString("id").ifBlank { "legacy-bill-$i-${item.optString("title").hashCode()}-${item.optString("dueDate")}" })
     }
 }.getOrDefault(emptyList())
 
@@ -984,6 +986,7 @@ private fun saveBills(context: Context, bills: List<Bill>) {
     val array = JSONArray()
     bills.forEach { bill ->
         array.put(JSONObject().apply {
+            put("id", bill.id)
             put("title", bill.title)
             put("amount", bill.amount)
             put("dueDate", bill.dueDate)
@@ -1003,5 +1006,5 @@ private fun nextMonthBill(bill: Bill): Bill? {
     calendar.add(Calendar.MONTH, 1)
     calendar.set(Calendar.DAY_OF_MONTH, day.coerceAtMost(calendar.getActualMaximum(Calendar.DAY_OF_MONTH)))
     val nextDate = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(calendar.time)
-    return bill.copy(dueDate = nextDate, paid = false)
+    return bill.copy(dueDate = nextDate, paid = false, id = java.util.UUID.randomUUID().toString())
 }

@@ -150,6 +150,10 @@ internal object CloudSync {
         val records = linkedMapOf<String, Any>()
         fun identity(item: Any): String {
             if (item is JSONObject) {
+                if (identityKey == "shopping" || identityKey == "name") {
+                    val stableId = item.optString("id")
+                    if (stableId.isNotBlank()) return "id|$stableId"
+                }
                 val fields = when (identityKey) {
                     "shopping", "name" -> listOf("name")
                     "transport_records", "stock_items", "commitments" -> listOf("id")

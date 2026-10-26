@@ -571,7 +571,7 @@ private fun ShoppingDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
 
 private const val PREFS_NAME = "entre_noses_local_data"
 
-private fun prefs(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+private fun prefs(context: Context) = securePreferences(context)
 
 private fun loadEntries(context: Context): List<MoneyEntry> = runCatching {
     val array = JSONArray(prefs(context).getString("entries", "[]"))
